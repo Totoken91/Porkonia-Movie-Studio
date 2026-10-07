@@ -1,5 +1,7 @@
 # Tests qualité/prix — 7 octobre 2026
 
+> Mise à jour de décision — 7 octobre 2026 : Kenny choisit désormais Seedance 2.0 Fast avec voix natives par défaut, Kevin inclus, pour leur naturel. Les résultats et préférences antérieurs ci-dessous sont historiques ; ElevenLabs reste un secours ciblé. Lire le workflow actuel et le guide cinéma.
+
 Référence approuvée Kevin, média Higgsfield 350ab1ed-0859-42c3-8881-f3d93d857458. Même action et réplique pour les tests : baisser le téléphone, tourner vers le curry, reculer la chaise ; « À… à ce point-là ? ». Voix native française de France demandée, sans référence ElevenLabs. Ambiance serveurs/pompe et bruitages curry/chaise explicitement demandés.
 
 | Modèle | Réglages | Devis | Job | État |

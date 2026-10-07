@@ -1,5 +1,7 @@
 # Voix françaises, promptage et budget
 
+> Mise à jour de décision — 7 octobre 2026 : Kenny choisit désormais Seedance 2.0 Fast avec voix natives par défaut, Kevin inclus, pour leur naturel. Les résultats et préférences antérieurs ci-dessous sont historiques ; ElevenLabs reste un secours ciblé. Lire le workflow actuel et le guide cinéma.
+
 Vérifié le 7 octobre 2026. Distinguer résultat écouté, documentation fournisseur et hypothèse à tester. Lire les guides et schémas actuels lorsque les modèles changent.
 
 ## ElevenLabs v4

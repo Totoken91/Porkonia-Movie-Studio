@@ -2,10 +2,13 @@
 
 Contexte partagé et outils pour produire les courts métrages Porkonia / PorkOS avec Claude ou Codex.
 
-**Base retenue : références digicam 4:3 validées par Kenny → ElevenLabs v4 → Seedance 2.0 Fast avec audio de référence → mix sonore → VHS PorkOS.**
+**Base retenue : scénario causal → storyboard et animatique → références digicam 4:3 validées → Seedance 2.0 Fast avec voix natives → mix sonore → VHS PorkOS.**
+
+Décision de Kenny, 7 octobre 2026 : voix natives par défaut, Kevin inclus. ElevenLabs est conservé comme secours ciblé.
 
 ## Commencer ici
 
+- [Guide de réalisation, storyboard, animatique et timing](docs/guide-realisation.md)
 - [Workflow actuel et reprise dans une nouvelle conversation](docs/workflow-production.md)
 - [Consignes communes aux agents](AGENTS.md) et [entrée Claude](CLAUDE.md)
 - [Compétence portable de réalisation](skills/porkonia-video-direction/SKILL.md)
@@ -14,7 +17,7 @@ Contexte partagé et outils pour produire les courts métrages Porkonia / PorkOS
 - [Recette VHS historique](docs/workflow-courts-porkos.md)
 - [PorkOS et assets canoniques](https://github.com/Totoken91/porkonia-os/tree/porkos)
 
-Fast + ElevenLabs est le meilleur plan testé. Les voix et le VHS sont approuvés ; l'intégration acoustique et la cohérence sur plusieurs plans restent à valider. Veo Lite et Mini sont écartés. Vérifier prix, accès et schémas avant chaque dépense.
+Le test précédent préférait Fast + ElevenLabs ; la décision actuelle privilégie le natif pour son naturel. Veo Lite et Mini sont écartés. Vérifier prix, accès et schémas avant chaque dépense. La version native de La Cible a été livrée ; ses prises restent à juger à l’écoute.
 
 ## Traitement VHS
 
