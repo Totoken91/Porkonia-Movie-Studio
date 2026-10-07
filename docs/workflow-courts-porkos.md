@@ -1,4 +1,4 @@
-> Historique du premier test VHS silencieux. Pour les courts avec personnages et dialogues, suivre [docs/workflow-production.md](docs/workflow-production.md).
+> Historique du premier test VHS silencieux. Pour les courts avec personnages et dialogues, suivre [workflow-production.md](workflow-production.md).
 
 # Workflow validé — courts métrages PorkOS
 
