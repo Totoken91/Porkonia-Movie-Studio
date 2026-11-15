@@ -34,6 +34,7 @@ Vérifié le 15 novembre 2026 : recompilé depuis ce dossier, le binaire rend de
 | `seqpost.py`, `city3_post.py` | Montage d'une séquence : intro, titrages, effet magnétoscope, NO SIGNAL |
 | `filmpost.py`, `film_queue.sh` | Montage du film entier, par tronçons, puis collage |
 | `music3.py`, `seqaudio.py`, `*_audio.py` | La musique et les bruitages, synthétisés en numpy |
+| `pilot_*.py`, `acte5_*.py`, `acte5b_*.py` | L'acte V de « PORKONIA, LE FILM » (la nuit du Gras-Fond) : voix synthétiques, boîte de dialogue, pièces d'archives dessinées, générique |
 
 ## Rendre
 
@@ -43,6 +44,8 @@ Vérifié le 15 novembre 2026 : recompilé depuis ce dossier, le binaire rend de
 
 | T0 | Séquence | Trames |
 |---|---|---|
+| 0 | Acte V du film, première partie : la jetée, l'embarquement, la plongée | 2400 |
+| 100 | Acte V du film, deuxième partie : la fête à bord | 4025 |
 | 200 | Douzi City, 05 h 00 | 2075 |
 | 300 | Le Porc couronné, 06 h 00 | 1800 |
 | 400 | La Grande Parade, 08 h 00 | 1800 |
@@ -54,6 +57,14 @@ Vérifié le 15 novembre 2026 : recompilé depuis ce dossier, le binaire rend de
 Un rendu se reprend : les trames s'ajoutent à la suite du fichier. Après une coupure, ramener le fichier à un nombre entier de trames (`truncate -s $((N*497664))`) puis relancer `./filmc N FIN T0 >> trames.rgb`.
 
 Compter 0,5 à 1,2 s par trame sur deux cœurs, soit 20 à 35 min pour 36 s. Le montage d'une séquence prend 5 à 10 min, celui du film entier environ 45 min.
+
+## Voix et boîte de dialogue (« PORKONIA, LE FILM »)
+
+Le film se fait sans voix de synthèse commerciale. `acte5_audio.py` fabrique la voix du narrateur lettre par lettre (une courte syllabe par lettre, deux formants, sans bruit de frappe) et écrit l'instant de chaque lettre dans un fichier `..._subs.json`. `acte5_post.py` s'en sert pour taper le texte au rythme de la voix dans une boîte de dialogue basse et compacte, qui ne cache pas l'image.
+
+Pour une nouvelle scène parlée : copier ces deux scripts, changer `LINES` (instant de début, phrase) et la durée `FILM`.
+
+`acte5_post.py` et `acte5b_post.py` lisent les trames dans plusieurs fichiers (`fields_a.rgb`, `p2_a.rgb`, etc.) : ce sont les morceaux du rendu d'origine. Pour refaire, rendre d'une traite et simplifier `field_full` ou `SRC`.
 
 ## Regarder avant de rendre
 
