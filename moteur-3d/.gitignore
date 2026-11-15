@@ -1,0 +1,15 @@
+filmc
+filmc[0-9]*
+filmc_*
+filmc.c
+film_body.c
+tex.h
+*.bin
+*.rgb
+*.wav
+*.png
+*.log
+*_v.mp4
+film_[0-9]*.mp4
+film_list.txt
+__pycache__/

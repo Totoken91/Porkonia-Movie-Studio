@@ -33,3 +33,7 @@ ffmpeg -framerate 25 -i vhs/%04d.png -i plan-brut.mp4 -map 0:v:0 -map '1:a:0?' -
 Cette commande conserve la piste audio du brut ; pour un mix final séparé, employer ce fichier audio comme seconde entrée. Le script traite en 384×288 et exporte en 768×576 à 25 fps, sans bombé CRT. Conserver l'export approuvé : le bruit VHS est aléatoire.
 
 Le script historique à la racine reste disponible ; scripts/render-vhs.cjs est la copie organisée identique. La bible et les médias originaux ne sont pas inclus dans ce dépôt.
+
+## Moteur 3D (images de synthèse)
+
+Le dossier [moteur-3d/](moteur-3d/README.md) contient le moteur de rendu écrit en C du film « 24 heures à Porkonia » : citoyens articulés, porc de marche, sept décors, montage et musique synthétisée. Il sert aux films et clips en images de synthèse, sans rapport avec la filière Seedance décrite plus haut.
