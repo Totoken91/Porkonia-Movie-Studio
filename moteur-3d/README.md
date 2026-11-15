@@ -54,6 +54,16 @@ Vérifié le 15 novembre 2026 : recompilé depuis ce dossier, le binaire rend de
 | 700 | Le Gras-Fond II et Fatbass | 1800 |
 | 800 | Le lever du soleil, le générique | 2500 |
 
+Le montage attend les trames sous ces noms : `mon.rgb`, `par.rgb`, `cub.rgb`, `tav.rgb`, `gf.rgb`, `fin.rgb`, et `dc3.rgb` pour Douzi City. Une séquence complète, par exemple la taverne :
+
+```sh
+./filmc 0 1800 600 > tav.rgb      # les images
+python3 tav_audio.py              # la musique et les bruitages : tav_audio.wav
+python3 seqpost.py tav            # le MP4 de la séquence
+```
+
+Le film entier, une fois toutes les séquences rendues et leur son fait : `nohup ./film_queue.sh &` (il enchaîne `python3 filmpost.py 0` à `6`, un tronçon par séquence, puis `audio`, puis `join`).
+
 Un rendu se reprend : les trames s'ajoutent à la suite du fichier. Après une coupure, ramener le fichier à un nombre entier de trames (`truncate -s $((N*497664))`) puis relancer `./filmc N FIN T0 >> trames.rgb`.
 
 Compter 0,5 à 1,2 s par trame sur deux cœurs, soit 20 à 35 min pour 36 s. Le montage d'une séquence prend 5 à 10 min, celui du film entier environ 45 min.
