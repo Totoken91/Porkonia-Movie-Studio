@@ -658,6 +658,7 @@ static v3 wlight(v3 p, v3 n, float ao, float sun) {
         float sa = 6.2831853f / 12, a = atan2f(p.x, -p.z), k0 = floorf(a / sa);
         for (int j = 0; j <= 1; j++) { float ka = clampf(k0 + j, -2, 2) * sa; v3 lv = sub(V(22.0f * sinf(ka), 1.6f, -22.0f * cosf(ka)), p); float d2 = dot(lv, lv), il = 1 / sqrtf(d2);
             L = add(L, mul(V(1.0f, 0.60f, 0.28f), WLAMP * 7.0f / (1 + 0.35f * d2) * fmaxf(dot(n, lv) * il, 0))); } }
+    if (__builtin_expect(NCH, 0)) L = add(L, ch_glow(p, n));
     return L;
 }
 static float wtrace(v3 ro, v3 rd, int *m, float tmax, int steps, float *glow) {
@@ -689,6 +690,7 @@ static v3 wshade(v3 ro, v3 rd, int depth, float *zout) {
             if (m == W_CTOP) nn = nrm(V((vnoise(p.x * 23.0f, p.z * 23.0f) - 0.5f) * 0.16f, 1, (vnoise(p.x * 23.0f + 31, p.z * 23.0f + 17) - 0.5f) * 0.16f));       // un bois ciré : les reflets se brouillent       // un marbre mouillé : les reflets tremblent
             v3 rc = wshade(add(p, mul(n, 0.03f)), refl(rd, nn), 1, &z2); col = add(mul(col, 1 - F * 0.85f), mul(rc, F)); }
         col = add(col, mul(WSUNC, powf(fmaxf(dot(rdir, WSUN), 0), M.gloss) * sh * M.spec * (M.env > 0.9f ? 1.0f : 0.5f)));
+        if (m == W_CHOPE) col = ch_shade(ro, rd, p, depth);       // la chope standard : son optique
         if (m == W_MUGH) { v3 bc = V(0.3f, 0.2f, 0.1f); float z2; if (depth == 0) { NOMUG = 1; bc = wshade(add(p, mul(rd, 0.004f)), rd, 1, &z2); NOMUG = 0; } col = tav_mugshade(ro, rd, p, n, L, bc); }
         col = mix3(col, wfogc(rd), 1 - expf(-wfod(ro, rd, t)));
         *zout = t;
@@ -715,7 +717,7 @@ static v3 wshade(v3 ro, v3 rd, int depth, float *zout) {
 }
 static v3 shade_w(v3 ro, v3 rd, float *zout) { return wshade(ro, rd, 0, zout); }
 static void setupw(float tb) {       // tb : le temps depuis 300 ; chaque séquence a cent secondes à elle
-    SEQ = (int)(tb / 100.0f); float s = tb - 100.0f * SEQ; WS = s; SHOT = 21; PARTY = 0; NOPIGS = 1; STAR = 0.6f; EXPO = 1.0f; WN = 0; WNL = 0; NPL = 0; WLINE = -1e9f; WLAMP = 0; WSNOW = 0;
+    SEQ = (int)(tb / 100.0f); float s = tb - 100.0f * SEQ; WS = s; SHOT = 21; PARTY = 0; NOPIGS = 1; STAR = 0.6f; EXPO = 1.0f; WN = 0; WNL = 0; NPL = 0; NCH = 0; WLINE = -1e9f; WLAMP = 0; WSNOW = 0;
     if (!CZINIT) { people_init(); if (getenv("WDBG")) WDBG = atoi(getenv("WDBG")); }
     WMTN = 1.55f;
     switch (SEQ) { case 1: par_setup(s); break; case 2: cub_setup(s); break; case 3: tav_setup(s); break; case 4: gf_setup(s); break; case 5: fin_setup(s); break; default: mon_setup(s); }

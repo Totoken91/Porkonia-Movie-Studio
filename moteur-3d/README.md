@@ -17,6 +17,7 @@ python3 tex.py        # l'atlas de textes : txt.bin et tex.h
 ```
 
 Vérifié le 15 novembre 2026 : recompilé depuis ce dossier, le binaire rend des trames identiques à l'octet près à celles du film.
+Depuis le 16 novembre 2026 (accueil de la chope standard) : identiques à l'octet près pour la fête à bord, Douzi City et le Porc couronné ; pour les séquences de jour et de nuit, 0 à 30 pixels par trame (sur 165 888) changent d'arrondi, parce que le compilateur ordonne autrement les calculs. Invisible, mais un plan retouché se re-rend en entier, pas trame par trame.
 
 ## Les fichiers
 
@@ -26,6 +27,7 @@ Vérifié le 15 novembre 2026 : recompilé depuis ce dossier, le binaire rend de
 | `film_body_part1.c`, `party_geo.c`, `party_shade.c`, `mkpart2.py` | Le corps du moteur (boucle de rendu par trames, anticrénelage, profondeur de champ, halo, tonalité) et la fête à bord du premier film |
 | `citizen.h` | Le citoyen standard : un cochon debout, articulé, habillé. La base de tous les personnages |
 | `porc4.h` | Le porc de marche à quatre pattes. **Figé : ne jamais changer sa forme ni ses couleurs** |
+| `chope.h`, `chope_hote.c` | La chope de Douzi Ambrée, modèle standard n° 3 : **toute bière à l'image est cette chope**, jamais un cylindre. Voir « La chope standard » |
 | `city_geo.c`, `city_shade.c`, `mkcity.py` | Douzi City à 05 h 00 (T0 = 200) |
 | `w24_geo.c`, `w24_shade.c`, `mk24.py` | Les séquences de jour et de nuit : un cadre commun et une scène par séquence |
 | `tex.py` | Les textes gravés ou peints dans les décors (atlas de champs de distance) |
@@ -100,6 +102,30 @@ Les personnages :
 - Placés un par un : `WCZ[k]` (le costume, copié d'une des douze silhouettes `CZA[0..11]` ou fait avec `cz_base`), une pose par trame (`cz_rest`, puis `cz_idle`, `cz_walk`, `cz_wave`, `cz_salute`, `cz_cheers`), et `w_place(k, x, y, z, cap)`. Le cap 0 regarde vers +z.
 - En foule : une grille dont chaque case tire sa silhouette et sa pose au hasard (voir `par_fan`, `cub_ring`, `gf_fan`).
 - Un citoyen mesure environ 1,3 m, ses bras portent à 0,35 m : rapprocher le comptoir, la manette ou la platine plutôt que d'étirer le bras. Pour l'asseoir, avancer les pieds de 15 cm et poser un tabouret de 24 cm.
+
+## La chope standard
+
+![La chope de Douzi Ambrée, modèle standard n° 3](chope-douzi-ambree-modele.jpg)
+
+Demande de Kenny du 16 novembre 2026 (« à chaque fois tu fais juste un cylindre moche ») : la bière de Porkonia a un modèle, comme le citoyen et le porc de marche. `chope.h` contient le modèle (verre à fossettes, pied épais, anse, Douzi Ambrée, mousse qui déborde, coulure, bulles, buée, dentelles de mousse, sous-bock, marque imprimée en or) et son optique (réfraction verre et bière, réflexion totale, absorption : mince la bière est dorée, épaisse elle est ambrée). `chope_hote.c` la branche dans le moteur : jusqu'à six chopes par image.
+
+Dans le `xxx_setup(s)` d'une séquence, à chaque trame :
+
+```c
+ch_put(V(x, y, z), 1.5f, lacet, inclinaison, fill, foam, cold, lace, drip, 1);
+```
+
+- `V(x, y, z)` : le point où le verre touche son support. Le dernier argument à 1 ajoute le sous-bock, dessous.
+- Échelle : 1 = taille réelle (16,5 cm). **1,5 dès qu'elle est près d'un citoyen ou dans sa main** (leurs têtes sont grosses, à 1 elle paraît minuscule), 10 pour une image de studio, 24 pour un monument.
+- Lacet 0 : l'anse vers +x, la marque face à -z. Inclinaison : pour trinquer.
+- `fill` 0 vide à 1 pleine ; `foam` hauteur de mousse (elle déborde au-dessus de 0,55 quand la chope est pleine) ; `cold` buée et gouttes ; `lace` dentelles de mousse au-dessus du niveau, quand on a bu ; `drip` la coulure.
+- Dans une main : après `ch_put`, `chi_t *I = &CHI[NCH - 1]; I->pos = sub(main, mul(add(mul(I->ex, 0.090f), mul(I->ey, 0.083f)), échelle));` (le milieu de l'anse dans la main).
+
+Rien d'autre à faire : `wmap` ajoute les chopes à la scène, `wshade` appelle leur optique (matière `W_CHOPE`), `wlight` ajoute la lueur d'ambre au pied d'une chope pleine, et `setupw` les retire à chaque trame. Les anciennes chopes cylindriques de la taverne (`W_MUGH`) et des citoyens (`PROP_MUG`) restent dans les films déjà rendus ; toute nouvelle scène prend la chope standard.
+
+Ne pas changer sa forme ni ses couleurs sans que Kenny le demande : on règle le remplissage, la mousse, la taille.
+
+Coût : une chope qui remplit l'image double à peu près le temps de la trame (l'optique relance des rayons dans la scène) ; posée au loin, elle ne coûte presque rien.
 
 ## Pièges rencontrés
 

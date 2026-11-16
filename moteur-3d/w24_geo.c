@@ -24,6 +24,7 @@ static float wpeople(v3 p, int *m) {
     return d;
 }
 static int wwho(v3 p, v3 *l) { int kb = 0; float db = 1e9f; for (int k = 0; k < WN; k++) { float e = len2(p.x - WPX[k], p.z - WPZ[k]); if (e < db) { db = e; kb = k; } } *l = w_local(p, kb); return kb; }
+#include "chope_hote.c"
 S float cone(v3 q, float R, float H) { return fmaxf((len2(q.x, q.z) - R * (1 - q.y / H)) * H / sqrtf(H * H + R * R), -q.y); }      // un cône posé sur y = 0
 S float wflag(v3 q, float L, float hh, float ph) {      // un drapeau qui claque : q.x le long de l'étoffe depuis le mât, q.y la hauteur, q.z l'épaisseur
     float u = clampf(q.x / L, 0, 1), w = q.z - (0.10f + 0.30f * u) * u * sinf(q.x * 2.6f - ph) - 0.10f * u * sinf(q.x * 5.3f - ph * 1.7f + q.y * 1.5f);
@@ -458,6 +459,7 @@ static float gf_in_map(v3 p, int *m) {
     b = wpeople(p, &mm); if (b < d) { d = b; *m = mm; }
     return d;
 }
-static float wmap(v3 p, int *m) {
+static float wmap0(v3 p, int *m) {
     switch (SEQ) { case 1: return par_map(p, m); case 2: return cub_map(p, m); case 3: return tav_map(p, m); case 4: return GFIN ? gf_in_map(p, m) : gf_out_map(p, m); default: return mon_map(p, m); }
 }
+static float wmap(v3 p, int *m) { float d = wmap0(p, m); return __builtin_expect(NCH, 0) ? ch_mapd(p, m, d) : d; }       // la scène, plus les chopes posées par ch_put
