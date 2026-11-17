@@ -9,7 +9,8 @@ TEXTS = [("TITLE", "PORKONIA", 200), ("SUB", "LE GRAS-FOND II", 96), ("CITY", "D
          ("MIN", "MINISTÈRE DU PORC", 96), ("SENAT", "SÉNAT DES TAVERNIERS", 96), ("CHARC", "CHARCUTERIE", 96),
          ("PLUS", "TOUJOURS PLUS", 96), ("GF", "LE GRAS-FOND", 96), ("NUIT", "LA NUIT DU GRAS-FOND", 96),
          ("FAT", "FATBASS", 96), ("P47", "PORC 47", 96), ("P48", "PORC 48", 96),
-         ("BRASS", "BRASSEFORT", 96), ("AMBREE", "DOUZI AMBRÉE", 96), ("FUMOIR", "FUMOIR", 96), ("HALLES", "LES HALLES", 96), ("BOUL", "BOULANGERIE", 96), ("PLACE", "PLACE DU PORC", 96), ("COMPTE", "COMPTEZ VOS PROCHES", 96)]
+         ("BRASS", "BRASSEFORT", 96), ("AMBREE", "DOUZI AMBRÉE", 96), ("FUMOIR", "FUMOIR", 96), ("HALLES", "LES HALLES", 96), ("BOUL", "BOULANGERIE", 96), ("PLACE", "PLACE DU PORC", 96), ("COMPTE", "COMPTEZ VOS PROCHES", 96),
+         ("VITEAU", "DJ VITEAU", 96), ("NEIGE", "SOUS LA NEIGE", 96), ("BAL", "BAL DES NEIGES", 96)]       # le clip « Sous la neige de Douzi City » (16 nov. 2026)
 blocks, meta = [], []
 for name, s, size in TEXTS:
     F = ImageFont.truetype(GF, size)

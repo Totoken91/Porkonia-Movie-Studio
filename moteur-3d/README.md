@@ -30,7 +30,7 @@ Depuis le 16 novembre 2026 (accueil de la chope standard) : identiques à l'octe
 | `chope.h`, `chope_hote.c` | La chope de Douzi Ambrée, modèle standard n° 3 : **toute bière à l'image est cette chope**, jamais un cylindre. Voir « La chope standard » |
 | `city_geo.c`, `city_shade.c`, `mkcity.py` | Douzi City à 05 h 00 (T0 = 200) |
 | `w24_geo.c`, `w24_shade.c`, `mk24.py` | Les séquences de jour et de nuit : un cadre commun et une scène par séquence |
-| `tex.py` | Les textes gravés ou peints dans les décors (atlas de champs de distance) |
+| `tex.py` | Les textes gravés ou peints dans les décors (atlas de champs de distance), y compris les enseignes du clip (DJ VITEAU, SOUS LA NEIGE, BAL DES NEIGES) |
 | `buildc.sh` | Enchaîne mkpart2, mkcity, mk24, puis gcc |
 | `tsw.sh`, `obs.py`, `obf.py` | Images d'essai : une trame par instant, en planches |
 | `seqpost.py`, `city3_post.py` | Montage d'une séquence : intro, titrages, effet magnétoscope, NO SIGNAL |
@@ -154,6 +154,34 @@ Conduite du travail :
 - Les programmes lancés en arrière-plan meurent quand la réponse se termine : rester actif jusqu'au bout, rendre par morceaux qu'on peut reprendre, monter par tronçons.
 - Deux cœurs seulement : un essai pendant un rendu le ralentit. Compiler les essais sous un autre nom.
 - Pour enchaîner des tâches, écrire un script de file d'attente : une boucle `pgrep -f` tapée à la main peut se reconnaître elle-même et ne jamais finir.
+
+## Le clip « Sous la neige de Douzi City », le Danseur et les nouveaux citoyens (16-17 novembre 2026)
+
+Le clip musical de DJ Viteau (4 min 28, 63 plans, rendu par trames 50 Hz) s'ajoute au moteur du film sans toucher à `filmc` : `buildclip.sh` construit un second binaire, `./filmclip` (`HD=1 ./buildclip.sh` construit aussi `filmclip_hd`, en 1152 x 576 par trame, pour les images fixes).
+
+```sh
+python3 tex.py && ./buildclip.sh
+CLIP="ts dur e th pat var mult s0" ./filmclip F0 F1 T0      # T0 = 900 + 100 x numéro de plan ; trame f = instant f / 50 - 1 s dans le plan
+./thd.sh essai "48 1 0 4 0 0 0 9"                            # une image fixe HD (dans /home/claude/clip/chope/)
+./tclip.sh essai "42 2.0 66.0 5.3 0.8 0 0 0" ...             # des trames 576 x 288 en planches
+./po.sh affiche.png                                          # l'affiche des Ranga Boyz (plan 50), en portrait 1080 x 1440 (binaire filmclip_po)
+```
+
+| Fichier | Rôle |
+|---|---|
+| `clip_geo.c`, `clip_shade.c`, `mkclip.py`, `buildclip.sh` | Les décors du clip (le Bal des Neiges, Douzi City sous la neige, le studio, la scène aux néons de l'affiche), les danses, les foules, et un plan par numéro (`clip_setup`) |
+| `danseur.h`, `danseur_mat.h` | Le Danseur : un porc humanoïde à squelette (bassin, buste et tête indépendants, bras et jambes par cinématique inverse). Le corps élancé est celui de **Martin Plaisir**, à lui seul. Les proportions se règlent (jambes, bras, épaules, buste, membres, ventre) : la bibliothèque `DNBODY` de `clip_shade.c` en garde huit (compact, grosse tête, boule à tuyaux, bedaine, armoire = John Pork, mini, poire, teckel) |
+| `clip/clip_edl.py`, `clip/clip_render.py`, `clip/clip_post.py` | Le découpage (63 plans calés sur les temps de la musique), le rendu reprenable plan par plan, le montage (intro, titrages, Porko Effect, NO SIGNAL). Ils attendent l'espace de travail en `/home/claude/porkonia3d` et `/home/claude/clip`, avec la musique `song.wav`, qui n'est pas dans ce dépôt |
+| `clip/affiche_ranga.py` | Le montage de l'affiche (halo des néons, titres) |
+
+Ce qui a changé dans `citizen.h` et `w24_shade.c` (valable pour tous les films) :
+- Cheveux : sept coupes de tous les jours en plus (court, raie de côté, longs, bouclettes, queue de cheval, gominé, couronne chauve) et celles des Ranga Boyz. Une coupe s'amincit jusqu'à rien à la ligne du front, sinon elle se lit comme un béret.
+- Le sourire est plus petit et plus doux (l'ancien, trop large, faisait peur), et la bouche ouverte ne se superpose plus au sourire.
+- Les mains : une paume de peau, deux doigts potelés recourbés, des ongles de sabot (`C_NAIL`) et un ergot. Les pieds : des sabots fendus, ou des baskets (`F_SHOES`, couleur `cshoe`). Le satin pailleté (`F_SEQUIN`) pour les vestes et les pantalons de scène.
+- Les bras ne passent plus dans le ventre ni dans les joues ; le rose des pommettes se dose selon la clarté de la peau.
+- L'ombre sur les personnages (`shadow_cz` dans `w24_shade.c`) avance à pas fins et donne une pénombre douce : les gros pas de `shadow()` faisaient des taches brunes dures sur les visages.
+
+Conséquence : les séquences déjà rendues du film « 24 heures à Porkonia » ne se recalculent plus à l'identique (mains, bouches, ombres sur les citoyens). Pour retrouver exactement l'ancien rendu, reprendre `citizen.h` et `w24_shade.c` du commit f4d4414.
 
 ## Ce qui reste à faire
 
