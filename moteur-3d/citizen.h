@@ -57,7 +57,8 @@ typedef struct {
 #endif
 static __thread float CZ_BND = CZ_BND0;      // au-delà de cette distance, une sphère englobante suffit (à élargir pour les rayons d'ombre)
 static __thread int CZ_PART;                // 0 corps, 1 tête, 2 groin, 3 oreille, 4 queue
-static __thread v3 CZ_Q, CZ_H, CZ_EAR, CZ_FL;      // le point dans le repère du torse, de la tête, de l'oreille
+static __thread v3 CZ_Q, CZ_H, CZ_EAR, CZ_FL;
+static __thread int NOBND;      // (20 nov. 2026) 1 pendant l'occlusion ambiante et l'ombre des personnages : les décors n'ajoutent pas leurs bornes de pas (des distances fictives au bord des cases de foule)      // le point dans le repère du torse, de la tête, de l'oreille
 
 S v3 cz_loc(v3 d, v3 ax, v3 ay, v3 az) { return V(dot(d, ax), dot(d, ay), dot(d, az)); }
 S float cz_smax(float a, float b, float k) { return -smin(-a, -b, k); }
@@ -335,9 +336,14 @@ S float cz_pat(int pat, float ua, float v) {      // ua : le tour du corps, de 0
     }
     return 0;
 }
-static void cz_sequin(v3 q, v3 c, cmat_t *M) {       // le satin pailleté (comme dn_sequin du Danseur)
-    v3 g = mul(q, 70.0f); float hs = hash2(floorf(g.x) + 17.0f * floorf(g.z), floorf(g.y)), dd = len(V(fract(g.x) - 0.5f, fract(g.y) - 0.5f, fract(g.z) - 0.5f));
-    M->alb = mul(c, 0.80f + 0.25f * hs); M->spec = 1.3f; M->gloss = 34; if (hs > 0.93f && dd < 0.40f) { float k = (hs - 0.93f) * 14.0f; M->alb = mix3(c, V(1, 1, 1), 0.6f); M->emis = mul(add(mul(c, 0.6f), V(0.5f, 0.5f, 0.5f)), 0.5f + 2.2f * k * k); M->spec = 2.5f; M->gloss = 200; }
+static void cz_sequin(v3 q, v3 c, cmat_t *M) {       // (20 nov. 2026, « ça se remarque presque pas qu'ils sont en tenues pailletées ») de vraies paillettes : une mosaïque de pastilles
+    // de 2 cm qui ne renvoient pas toutes la même lumière, et une sur quatre qui s'allume et s'éteint (scintille) en cadence, très fort
+    v3 g = mul(q, 48.0f), cell = V(floorf(g.x), floorf(g.y), floorf(g.z)); float hs = hash2(cell.x + 17.0f * cell.z, cell.y), h2 = hash2(cell.y + 31.0f * cell.x, cell.z + 7.0f);
+    float dd = len(V(fract(g.x) - 0.5f, fract(g.y) - 0.5f, fract(g.z) - 0.5f)), disc = sstep(0.48f, 0.36f, dd);
+    M->alb = mul(c, 0.55f + 0.75f * hs * disc + 0.15f * (1 - disc)); M->spec = 1.8f; M->gloss = 60;
+    float tw = fmaxf(sinf(h2 * 6.2832f + T * (5.0f + 6.0f * hs)), 0); tw = tw * tw * tw * tw;
+    if (h2 > 0.74f && disc > 0.2f) { float k = disc * (0.35f + 0.65f * tw); M->alb = mix3(M->alb, V(1, 1, 1), 0.5f * k); M->emis = mul(add(mul(c, 0.55f), V(0.55f, 0.55f, 0.55f)), 6.5f * k * k); M->spec = 3.0f; M->gloss = 220; }
+    else M->emis = mul(c, 0.25f * hs * disc);       // les autres pastilles brillent un peu de leur couleur
 }
 static void cz_mat(const cz_t *C, const pose_t *P, int m, cmat_t *M) {       // après un cz_sdf au point touché (CZ_Q, CZ_H, CZ_PART à jour)
     v3 q = CZ_Q, h = CZ_H, a = V(fabsf(h.x), h.y, h.z); float ua = atan2f(q.x, q.z) / 6.2832f + 0.5f;

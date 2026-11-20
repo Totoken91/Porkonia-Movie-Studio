@@ -181,6 +181,10 @@ Ce qui a changé dans `citizen.h` et `w24_shade.c` (valable pour tous les films)
 - Les bras ne passent plus dans le ventre ni dans les joues ; le rose des pommettes se dose selon la clarté de la peau.
 - L'ombre sur les personnages (`shadow_cz` dans `w24_shade.c`) avance à pas fins et donne une pénombre douce : les gros pas de `shadow()` faisaient des taches brunes dures sur les visages.
 
+- (20 nov.) Les tenues ne se « trouent » plus quand la caméra bouge : l'occlusion ambiante et l'ombre lisaient les bornes de pas des cases de foule comme de vrais objets (`NOBND` dans `citizen.h`) ; occlusion propre aux personnages (`ambocc_cz`) ; plus d'auto-ombrage de la peau.
+- (20 nov.) Paillettes : une mosaïque de pastilles de 2 cm, une sur quatre scintille en cadence (`cz_sequin`).
+- (20 nov.) Le filtre étoile des vieux clips (`clip/star_filter.py`, appliqué dans `clip_post.py` avant le Porko Effect ; `NOSTAR=1` pour l'enlever) : seuls les petits points brillants étoilent, pas les reflets des yeux.
+
 Conséquence : les séquences déjà rendues du film « 24 heures à Porkonia » ne se recalculent plus à l'identique (mains, bouches, ombres sur les citoyens). Pour retrouver exactement l'ancien rendu, reprendre `citizen.h` et `w24_shade.c` du commit f4d4414.
 
 ## Ce qui reste à faire

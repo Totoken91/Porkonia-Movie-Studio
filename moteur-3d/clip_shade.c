@@ -795,6 +795,14 @@ static void clip_setup(int K, float s) {
         static const v3 SK[7] = {{0.30f, 0.16f, 0.10f}, {0.92f, 0.37f, 0.38f}, {0.085f, 0.07f, 0.075f}, {0.95f, 0.66f, 0.64f}, {0.93f, 0.42f, 0.44f}, {0.96f, 0.80f, 0.72f}, {0.82f, 0.50f, 0.50f}};
         static const v3 HC[7][2] = {{{0, 0, 0}, {0, 0, 0}}, {{0.90f, 0.80f, 0.50f}, {1.0f, 0.96f, 0.80f}}, {{0.75f, 0.36f, 0.05f}, {0.95f, 0.62f, 0.15f}}, {{0.02f, 0.45f, 0.48f}, {0.55f, 0.95f, 0.90f}}, {{0.36f, 0.10f, 0.55f}, {0.62f, 0.30f, 0.80f}}, {{0.05f, 0.16f, 0.55f}, {0.35f, 0.65f, 1.0f}}, {{0.50f, 0.04f, 0.09f}, {0.85f, 0.20f, 0.25f}}};
         static const int CT[7] = {DC_NONE, DC_QUIFF, DC_AFRO, DC_MOHAWK, DC_FRINGE, DC_SPIKES, DC_BUN}, O[7] = {5, 3, 1, 0, 2, 4, 6};
+        if (CVAR == 13) {       // contrôle des tenues : bras levés, écartés, croisés, de face (motif 0), de dos (1), de trois quarts (2)
+            static const int K[6] = {12, 15, 4, 21, 0, 19};
+            for (int i = 0; i < 6; i++) { cz_t *C = &WCZ[WN]; *C = CZC[K[i]]; pose_t *P = &WPP[WN]; cz_rest(C, P);
+                if (i % 3 == 0) { P->hand[0] = V(0.30f, 0.90f, 0.05f); P->hand[1] = V(-0.30f, 0.90f, 0.05f); }
+                else if (i % 3 == 1) { P->hand[0] = V(0.52f, 0.55f, 0.10f); P->hand[1] = V(-0.52f, 0.55f, 0.10f); P->twist = 0.3f; }
+                else { P->hand[0] = V(-0.05f, 0.45f, 0.30f); P->hand[1] = V(0.05f, 0.50f, 0.30f); P->lean = 0.12f; }
+                w_place(WN, -2.25f + 0.9f * i, 0, 0, PI + (CPAT == 1 ? PI : CPAT == 2 ? 0.8f : 0)); WN++; }
+            cam(V(0, 0.95f, -4.6f), V(0, 0.75f, 0), 1.9f); break; }
         if (CVAR == 12) {       // les baskets : six paires, de trois quarts (motif 0), de profil (1), de face (2)
             for (int i = 0; i < 6; i++) { cz_t *C = &WCZ[WN]; *C = CZC[12 + (i * 2 + 1) % 12]; C->flags |= F_SHOES; { static const v3 SH[6] = {{0.93f, 0.92f, 0.89f}, {0.05f, 0.05f, 0.06f}, {0.85f, 0.12f, 0.15f}, {0.10f, 0.35f, 0.85f}, {0.95f, 0.75f, 0.10f}, {0.92f, 0.30f, 0.60f}}; C->cshoe = SH[i]; }
                 pose_t *P = &WPP[WN]; cz_rest(C, P); if (i & 1) { P->foot[0].z += 0.10f; P->footp[0] = -0.25f; }

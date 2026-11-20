@@ -6,6 +6,8 @@ le Porko Effect v3 doux, puis gel, neige, NO SIGNAL.
 import sys, os, time, math, subprocess, numpy as np, cv2
 sys.path.insert(0, "/home/claude/clip"); sys.path.insert(0, "/home/claude/channelpork")
 import pork_look, pork_vhs2, pork_vhs3, pork_titles
+import star_filter
+STAR = os.environ.get('NOSTAR') is None
 pork_look.LOGO_PATH = "/home/claude/channelpork/logo_canal.png"
 from PIL import Image, ImageDraw, ImageFont
 from clip_edl import SHOTS, shot_at, P, PH, DUR
@@ -109,6 +111,7 @@ _st = dict(prev=None, last=None, shot=-1)
 def body_full(k):
     sh = shot_at(k); j = k - sh["k0"]
     full = np.repeat(cv2.resize(field(sh, j // sh["mult"]), (W, FH), interpolation=cv2.INTER_CUBIC), 2, axis=0)
+    if STAR: full = star_filter.star(full)       # (20 nov. 2026) le filtre étoile, sur l'image propre, avant les effets et le Porko Effect
     full = apply_fx(full, sh, k)
     if "trail" in sh["fx"] and _st["prev"] is not None and _st["shot"] == sh["i"]: full = np.maximum(full, (_st["prev"].astype(np.float32) * 0.88).astype(np.uint8))
     if _st["shot"] != sh["i"]: _st["last"] = _st["prev"]; _st["shot"] = sh["i"]

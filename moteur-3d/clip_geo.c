@@ -82,14 +82,17 @@ static float bal_map(v3 p, int *m) {
         float bz = fmaxf(fmaxf(ax - 4.2f, p.y - 2.3f), fmaxf(-5.8f - p.z, p.z - 5.4f));
         if (bz < 0) { v3 l; int k = bal_fan(p, &l);
             if (k >= 0) d = c_cz(&CZC[k % 24], &CRR[k], &CRP[k], l, m, d);
-            { float ix = clampf(floorf(p.x / 1.4f), -3, 2), iz = clampf(floorf((p.z + 0.2f) / 1.4f), -4, 3), lx = p.x - (ix + 0.5f) * 1.4f, lz = p.z + 0.2f - (iz + 0.5f) * 1.4f;
-                d = fminf(d, fminf((ix < -2.5f && lx < 0) || (ix > 1.5f && lx > 0) ? 1e9f : 0.7f - fabsf(lx), (iz < -3.5f && lz < 0) || (iz > 2.5f && lz > 0) ? 1e9f : 0.7f - fabsf(lz)) + 0.3f); } }
+            {   // (20 nov. 2026) le pas est borné par le bord de la case DE LA GRILLE DE bal_fan (tournée de 12°, colonnes décalées) : depuis le 17 nov., il l'était encore par l'ancienne grille droite,
+                // les rayons sautaient dans la case voisine et des morceaux de danseurs apparaissaient et disparaissaient quand la caméra bougeait
+                const float c0 = 0.9781f, s0 = 0.2079f; float qx = p.x * c0 - p.z * s0, qz = p.x * s0 + p.z * c0;
+                float ix = clampf(floorf(qx / 1.4f), -3, 2), oz = 0.95f * (hash2(ix * 2.3f + 0.7f, 7.3f) - 0.5f), iz = clampf(floorf((qz + 0.2f - oz) / 1.4f), -4, 3), lx = qx - (ix + 0.5f) * 1.4f, lz = qz + 0.2f - oz - (iz + 0.5f) * 1.4f;
+                if (!NOBND) d = fminf(d, fminf((ix < -2.5f && lx < 0) || (ix > 1.5f && lx > 0) ? 1e9f : 0.7f - fabsf(lx), (iz < -3.5f && lz < 0) || (iz > 2.5f && lz > 0) ? 1e9f : 0.7f - fabsf(lz)) + 0.12f); } }
         else d = fminf(d, bz + 0.3f); }
     if (CCHEN) { float zc = -7.7f, bd = fmaxf(fabsf(p.z - zc) - 0.75f, p.y - 1.25f);       // la chenille : huit porcs de marche, le meneur chromé devant
         if (bd > 0.4f) d = fminf(d, bd);
         else { float k, lx = c_repc(p.x - CCHX, 1.6f, -7, 0, &k), ph = PI * CB + 0.5f * k, bob = 0.05f * fabsf(sinf(ph));
             b = p4_sdf(V(-(p.z - zc) / 0.5f, (p.y - bob) / 0.5f, lx / 0.5f), ph, 1, k > -0.5f ? W_PCHROME : (fract(k * 0.37f + 0.1f) < 0.25f ? W_PGOLD : W_PPINK), W_PEYE, W_PGOLD, &mm) * 0.5f; if (b < d) { d = b; *m = mm; }
-            d = fminf(d, ((k < -6.5f && lx < 0) || (k > -0.5f && lx > 0) ? 1e9f : 0.8f - fabsf(lx)) + 0.06f); } }
+            if (!NOBND) d = fminf(d, ((k < -6.5f && lx < 0) || (k > -0.5f && lx > 0) ? 1e9f : 0.8f - fabsf(lx)) + 0.06f); } }
     b = wpeople(p, &mm); if (b < d) { d = b; *m = mm; }
     if (DNON) d = dn_map(p, m, d);       // Martin Louria
     if (CDJ >= 0 && !NOCZ) d = dj_bling(p, m, d);
@@ -195,7 +198,7 @@ static float hyp_map(v3 p, int *m) {
     if (CHV == 3) { UN(8.0f - p.z, W_CSPKW)
         if (!NOCZ) { float bz = fmaxf(fmaxf(fabsf(p.x) - 4.25f, p.y - 2.5f), fabsf(p.z - 3.4f) - 0.85f);
             if (bz < 0) { v3 l; float k; int f = hyp_fan(p, &l); float lx = c_repc(p.x, 1.7f, -2, 2, &k); d = c_cz(&CZC[f % 24], &CRR[f], &CRP[f], l, m, d);
-                d = fminf(d, ((k < -1.5f && lx < 0) || (k > 1.5f && lx > 0) ? 1e9f : 0.85f - fabsf(lx)) + 0.3f); }
+                if (!NOBND) d = fminf(d, ((k < -1.5f && lx < 0) || (k > 1.5f && lx > 0) ? 1e9f : 0.85f - fabsf(lx)) + 0.3f); }
             else d = fminf(d, bz + 0.3f); } }
     if (CHV == 5 && CK == 41 && p.z < -1.9f && p.y < 1.0f) { float k, lx = c_repc(p.x, 1.25f, -2, 2, &k); int mm;       // cinq porcs de marche, au pas, devant les habitants
         float b = p4_sdf(V(-(p.z + 2.9f) / 0.5f, p.y / 0.5f, lx / 0.5f), CTS * 5.0f + k * 1.3f, 1, W_PPINK, W_PEYE, W_PGOLD, &mm) * 0.5f; if (b < d) { d = b; *m = mm; return d; } }
