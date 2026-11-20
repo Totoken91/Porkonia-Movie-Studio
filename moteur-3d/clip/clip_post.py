@@ -28,7 +28,7 @@ TITLES = [(1.2, 5.2, "CANAL PORK PRÉSENTE", "SOUS LA NEIGE DE DOUZI CITY"),    
           (64.0, 68.6, "SUR LA PISTE", "LES RANGA BOYZ"),
           (79.55, 82.0, "LEUR PAS LÉGENDAIRE", "LE RANGA STYLE"),
           (148.6, 152.9, "SUR LE DANCEFLOOR", "MARTIN PLAISIR"),
-          (261.75, 264.2, "DJ VITEAU", "SOUS LA NEIGE DE DOUZI CITY")]
+          (259.2, 266.9, "DJ VITEAU", "SOUS LA NEIGE DE DOUZI CITY")]       # (20 nov. 2026) la carte de fin reste jusqu'à l'image figée comprise
 os.makedirs(R, exist_ok=True)
 
 def render_cmd(sh, a, b):
