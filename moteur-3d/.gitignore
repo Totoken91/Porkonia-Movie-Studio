@@ -13,3 +13,12 @@ tex.h
 film_[0-9]*.mp4
 film_list.txt
 __pycache__/
+filmclip
+filmclip.c
+filmclip_hd*
+filmclip_po*
+tests/ref/
+tests/new/
+tests/asan/
+tests/*_asan
+tests/sondes.png

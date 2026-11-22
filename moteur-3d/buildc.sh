@@ -6,4 +6,4 @@ tex = c[c.index("// ---------- textures"):c.index("static void emb(")].replace("
 prim = c[c.index("// ---------- primitives"):c.index("// ---------- the crowned pig")]
 open('filmc.c', 'w').write(pre + tex + prim + s)
 P
-gcc -O3 -ffast-math -march=native -fopenmp -o ${OUT:-filmc} filmc.c -lm 2>&1 | grep -E "error|warning: (impl|unused variable)" | head -20
+gcc -O3 -ffast-math -march=native -fopenmp ${STABLE:+-DHASH_STABLE} -o ${OUT:-filmc} filmc.c -lm 2>&1 | grep -E "error|warning: (impl|unused variable)" | head -20

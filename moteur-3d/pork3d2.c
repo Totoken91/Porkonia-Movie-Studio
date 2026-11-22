@@ -27,7 +27,16 @@ S float sstep(float a, float b, float x) { float t = clampf((x - a) / (b - a), 0
 S float ease(float x) { x = clampf(x, 0, 1); return x * x * (3 - 2 * x); }
 S float smin(float a, float b, float k) { float h = fmaxf(k - fabsf(a - b), 0) / k; return fminf(a, b) - h * h * k * 0.25f; }
 S float fract(float x) { return x - floorf(x); }
+#ifndef HASH_STABLE
 S float hash2(float x, float y) { return fract(sinf(x * 127.1f + y * 311.7f) * 43758.5453f); }
+#else
+// (22 nov. 2026) Le hasard du décor (fenêtres allumées, tenues de la foule, flocons...) passe par sin(...) * 43758 : la moindre différence d'arrondi
+// change le résultat. Inlinée, la fonction était compilée différemment selon l'endroit (FMA ou pas, sinus vectorisé à 4 ulp ou pas) : toucher une
+// ligne ailleurs dans le moteur allumait ou éteignait des fenêtres de Douzi City. Hors ligne, sans contraction ni vectorisation, elle rend
+// toujours la même valeur pour les mêmes x, y, quel que soit le reste du code. Pas par défaut : elle change un peu le hasard des films déjà rendus
+// (quelques fenêtres, flocons, tenues). STABLE=1 ./buildc.sh (ou -DHASH_STABLE) pour une nouvelle production, à garder jusqu'au bout.
+__attribute__((noinline, optimize("fp-contract=off", "no-tree-vectorize"))) static float hash2(float x, float y) { return fract(sinf(fmaf(x, 127.1f, y * 311.7f)) * 43758.5453f); }
+#endif
 S float vnoise(float x, float y) {
     float ix = floorf(x), iy = floorf(y), fx = x - ix, fy = y - iy;
     fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);

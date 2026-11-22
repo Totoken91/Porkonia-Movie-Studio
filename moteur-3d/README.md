@@ -41,7 +41,7 @@ Depuis le 16 novembre 2026 (accueil de la chope standard) : identiques à l'octe
 ## Rendre
 
 ```sh
-./filmc F0 F1 T0 > trames.rgb     # trames F0 à F1-1, 576 x 288 en rgb24, 50 trames par seconde
+./filmc F0 F1 T0 > trames.rgb     # trames F0 à F1-1, 576 x 288 en rgb24, 50 trames par seconde (ajouter noaa : sans anticrénelage)
 ```
 
 | T0 | Séquence | Trames |
@@ -186,6 +186,49 @@ Ce qui a changé dans `citizen.h` et `w24_shade.c` (valable pour tous les films)
 - (20 nov.) Le filtre étoile des vieux clips (`clip/star_filter.py`, appliqué dans `clip_post.py` avant le Porko Effect ; `NOSTAR=1` pour l'enlever) : seuls les petits points brillants étoilent, pas les reflets des yeux.
 
 Conséquence : les séquences déjà rendues du film « 24 heures à Porkonia » ne se recalculent plus à l'identique (mains, bouches, ombres sur les citoyens). Pour retrouver exactement l'ancien rendu, reprendre `citizen.h` et `w24_shade.c` du commit f4d4414.
+
+## Tests, contrôle qualité et robustesse (22 novembre 2026)
+
+Avant et après toute modification du moteur :
+
+```sh
+./test_moteur.sh ref      # construit, vérifie, photographie 30 trames sondes (deux par séquence du film, douze plans du clip)
+./test_moteur.sh          # après la modif : mêmes vérifications, et comparaison pixel par pixel avec la photo d'avant
+ASAN=1 ./test_moteur.sh   # en plus, les sondes passées au détecteur de fautes mémoire et de calculs indéfinis (3 min)
+```
+
+Ce que la batterie vérifie : la construction, la ligne de commande (sans argument, T0 illisible, `nan`), le lancement depuis un autre dossier, une caméra qui vise pile vers le bas, la reprise (rendu d'une traite = trame par trame) et l'indépendance au nombre de cœurs. `tests/sondes.py planche` fait la planche des sondes.
+
+Contrôle qualité d'un rendu, sans regarder la vidéo (demande du 16 novembre : « vérifier systématiquement ») :
+
+```sh
+ZSTAT=1 ./filmc 0 1800 600 > tav.rgb 2> tav.log      # ZSTAT : le moteur note pour chaque trame la part de l'image collée à la caméra
+python3 qc.py tav.rgb tav.log --t0 0                  # rapport + qc.png, les trames suspectes avec la zone entourée en rouge
+```
+
+`qc.py` signale les trames noires, cramées ou figées, les POP (une zone qui change d'un coup et reste : objet qui apparaît ou disparaît), les FLASH (une zone qui change sur une trame puis revient : objet qui traverse le champ), les LUCIOLES (pixels fous, comparés aux trames voisines pour ne pas confondre avec la neige et les étoiles) et les CLIP (caméra dans un objet). Il reconnaît les coupes et les changements de lumière voulus (dalles qui changent au temps). Essayé sur un rendu propre (aucune alerte) et sur le même rendu abîmé exprès (trame noire, objet qui apparaît, flash, lucioles : les quatre trouvés).
+
+Ce qui a été corrigé (sans rien changer aux images, sauf Douzi City, voir plus bas) :
+- `filmc` sans argument plantait ; il affiche maintenant son mode d'emploi, et refuse un T0 illisible ou `nan` (avant : une image entièrement noire).
+- `txt.bin` est cherché dans le dossier courant, puis dans `$PORK_DIR`, puis à côté du binaire : on peut lancer le moteur d'ailleurs.
+- Une caméra qui visait pile vers le haut ou le bas (grue à la verticale) donnait une image d'une seule couleur.
+- Un pixel non fini (NaN) est remis à 0, avec un message, pour qu'il ne se propage pas dans le flou et le halo. Aucun n'a été vu sur 400 trames balayées, mais le garde-fou ne coûte rien.
+- Au-delà de 6 chopes, `ch_put` les ignorait en silence et le code qui suivait déplaçait la sixième : il prévient maintenant (la limite reste 6 : la monter change l'arrondi de certaines images).
+- `po.sh` appelait `filmclip_po` que rien ne construisait : `PO=1 ./buildclip.sh` le construit, et `po.sh` le fait tout seul s'il manque.
+
+### Le hasard du décor et les fenêtres qui changent
+
+Les fenêtres allumées, les tenues de la foule, les flocons sortent de `hash2`, un `sin(...) * 43758`. La moindre différence d'arrondi change son résultat, et le compilateur l'arrondit différemment selon l'endroit où il l'insère. Conséquence : toucher n'importe quelle ligne du moteur peut allumer ou éteindre des fenêtres de Douzi City (c'est le cas de cette révision : 2 fenêtres sur la sonde de Douzi City ; toutes les autres sondes sont identiques à l'octet), et une compilation optimisée autrement (PGO) change des centaines de fenêtres. Même compilateur, AVX2 ou AVX-512 : images identiques, donc un autre PC donne les mêmes trames s'il a la même version de gcc.
+
+`STABLE=1 ./buildc.sh` (et `./buildclip.sh`) compile un `hash2` figé : vérifié, il rend les 30 sondes à l'octet près même après des modifications ailleurs dans le moteur. Il change un peu le hasard par rapport aux films déjà rendus (quelques fenêtres, flocons, tenues) : à choisir au début d'une nouvelle production et à garder jusqu'au bout. Dans tous les cas, ne jamais mélanger dans un même plan des trames rendues par deux binaires différents.
+
+### Étude de vitesse
+
+Mesures sur les 30 sondes (2 cœurs Xeon, 0,2 à 1,4 s par trame) :
+- Où part le temps : la marche des rayons primaires fait 50 à 70 % des évaluations de la scène (20 à 80 pas par pixel), les reflets 5 à 30 %, les normales, l'occlusion et les ombres le reste. L'anticrénelage adaptatif repasse 4 à 27 % des pixels et peut coûter jusqu'à un tiers de la trame (piste de danse). Le montage dans le moteur (halo, flou, tonalité) et la préparation de la trame : moins de 2 %.
+- Donc le moteur passe presque entièrement en parallèle : sur un PC à 8 ou 16 cœurs, le temps par trame se divise à peu près par le nombre de cœurs. C'est le vrai levier pour des films longs.
+- Essayé et écarté : pas allongés avec retour en arrière (« over-relaxation », ω = 1,3 et 1,6) : +0 à 3 % et des différences visibles ; compilation guidée par profil (PGO) : rien gagné et des centaines de fenêtres changées ; déroulage des boucles : rien ; AVX-512 contre AVX2 : même vitesse, mêmes images.
+- Ce qui reste à gagner se fait scène par scène (boîtes englobantes plus serrées autour des foules et des décors chers), à mesurer avec les sondes.
 
 ## Ce qui reste à faire
 

@@ -12,7 +12,9 @@ static float PC = 1, PS = 0, GAP0 = 1, GAP1 = 0, BEAMS = 1;
 S v3 subd(v3 d) { return V(PC * d.x - PS * d.y, PS * d.x + PC * d.y, d.z); }
 S v3 subq(v3 p) { return subd(sub(p, SUBP)); }
 S v3 subw(v3 q) { return add(SUBP, V(PC * q.x + PS * q.y, -PS * q.x + PC * q.y, q.z)); }
-static void cam(v3 ro, v3 ta, float fov) { RO = ro; CW = nrm(sub(ta, ro)); CU = nrm(cross(V(0, 1, 0), CW)); CV = cross(CW, CU); FOV = fov; }
+static void cam(v3 ro, v3 ta, float fov) { RO = ro; CW = nrm(sub(ta, ro)); CU = nrm(cross(V(0, 1, 0), CW));
+    if (fabsf(CW.y) > 0.99999f) CU = nrm(cross(V(0, 0, 1), CW));       // (22 nov. 2026) caméra qui vise pile en haut ou en bas : sans ça, l'image s'écrase en une seule couleur
+    CV = cross(CW, CU); FOV = fov; }
 S float hashi(float x, float y) {
     unsigned n = (unsigned)(int)x * 374761393u + (unsigned)(int)y * 668265263u;
     n = (n ^ (n >> 13)) * 1274126177u; n ^= n >> 16;
@@ -692,11 +694,25 @@ static void post(int fi, unsigned char *out) {
         }
     }
 }
+#include <unistd.h>
+static int badf(float v) { unsigned u; memcpy(&u, &v, 4); return (u & 0x7f800000u) == 0x7f800000u; }       // NaN ou infini (test sur les bits : -ffast-math efface isfinite)
+static FILE *open_data(const char *argv0, const char *name) {       // (22 nov. 2026) txt.bin : dossier courant, puis $PORK_DIR, puis le dossier du binaire
+    FILE *f = fopen(name, "rb"); if (f) return f;
+    char path[4096]; const char *e = getenv("PORK_DIR");
+    if (e) { snprintf(path, sizeof path, "%s/%s", e, name); if ((f = fopen(path, "rb"))) return f; }
+    ssize_t n = readlink("/proc/self/exe", path, sizeof path - 1);
+    if (n <= 0) { snprintf(path, sizeof path, "%s", argv0); n = (ssize_t)strlen(path); } else path[n] = 0;
+    char *sl = strrchr(path, '/'); if (sl && (size_t)(sl - path) + strlen(name) + 2 < sizeof path) { strcpy(sl + 1, name); f = fopen(path, "rb"); }
+    return f;
+}
 int main(int argc, char **argv) {       // film F0 F1 [T0] > fields.rgb       (field f is at time f / 50 + T0; even fields carry the even lines)
     if (getenv("DBG")) DBG = atoi(getenv("DBG"));
-    int f0 = atoi(argv[1]), f1 = atoi(argv[2]); float t0 = argc > 3 ? atof(argv[3]) : 0; int noaa = argc > 4;
+    if (argc < 3) { fprintf(stderr, "usage : %s F0 F1 [T0] [noaa] > trames.rgb   (trames F0 à F1-1, 576 x 288 rgb24, 50 par seconde ; T0 choisit la séquence, voir README)\n", argv[0]); return 2; }
+    char *e1, *e2, *e3 = 0; long lf0 = strtol(argv[1], &e1, 10), lf1 = strtol(argv[2], &e2, 10); double dt0 = argc > 3 ? strtod(argv[3], &e3) : 0;
+    if (*e1 || *e2 || (argc > 3 && *e3) || dt0 != dt0 || dt0 > 1e6 || dt0 < -1e6 || lf0 < -1000000 || lf1 > 100000000) { fprintf(stderr, "%s : arguments illisibles (F0 F1 entiers, T0 nombre)\n", argv[0]); return 2; }
+    int f0 = (int)lf0, f1 = (int)lf1; float t0 = (float)dt0; int noaa = argc > 4, zstat = getenv("ZSTAT") != 0;
     TX = malloc(sizeof(float) * TXW * TXH);
-    FILE *f = fopen("txt.bin", "rb"); if (!f || fread(TX, sizeof(float), TXW * TXH, f) != TXW * TXH) { fprintf(stderr, "txt.bin?\n"); return 1; } fclose(f);
+    FILE *f = open_data(argv[0], "txt.bin"); if (!f || fread(TX, sizeof(float), TXW * TXH, f) != TXW * TXH) { fprintf(stderr, "txt.bin introuvable ou incomplet : lancer python3 tex.py dans le dossier du moteur (ou PORK_DIR=...)\n"); return 1; } fclose(f);
     HDR = malloc(sizeof(float) * W * HF * 3); ZB = malloc(sizeof(float) * W * HF);
     unsigned char *out = malloc(W * HF * 3), *mask = malloc(W * HF);
     for (int fi = f0; fi < f1; fi++) {
@@ -713,6 +729,10 @@ int main(int argc, char **argv) {       // film F0 F1 [T0] > fields.rgb       (f
                 v3 a = sample(x, j, par, fi + 1, &z), b = sample(x, j, par, fi + 2, &z);
                 q[0] = (fminf(q[0], 60) + fminf(a.x, 60) + fminf(b.x, 60)) / 3; q[1] = (fminf(q[1], 60) + fminf(a.y, 60) + fminf(b.y, 60)) / 3; q[2] = (fminf(q[2], 60) + fminf(a.z, 60) + fminf(b.z, 60)) / 3; }
         }
+        if (zstat) { int nz = 0, sk = 0; for (int i = 0; i < W * HF; i++) { if (ZB[i] < 0.12f) nz++; if (ZB[i] > 9e3f) sk++; }       // pour qc.py : caméra dans un objet, ciel
+            fprintf(stderr, "ZSTAT %d %.4f %.4f\n", fi, nz / (float)(W * HF), sk / (float)(W * HF)); }
+        { long nb = 0; for (int i = 0; i < W * HF * 3; i++) if (badf(HDR[i])) { HDR[i] = 0; nb++; }
+            if (nb) fprintf(stderr, "trame %d : %ld valeurs non finies remises à 0\n", fi, nb); }
         post(fi, out);
         fwrite(out, 1, W * HF * 3, stdout);
         if (fi % 25 == 0) { fprintf(stderr, "%d\n", fi); fflush(stderr); }

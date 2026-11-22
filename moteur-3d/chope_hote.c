@@ -12,7 +12,7 @@
 enum { W_CHOPE = 480 };
 static v3 wshade(v3 ro, v3 rd, int depth, float *zout); static v3 wlight(v3 p, v3 n, float ao, float sun);
 typedef struct { float fill, foam, cold, lace, drip, t; int coaster; } chope_t;
-#define NCHI 6
+#define NCHI 6       // (22 nov. 2026) au-delà, ch_put prévient au lieu de déplacer la dernière chope ; monter la limite change l'arrondi de certaines images
 typedef struct { v3 pos, ex, ey, ez; float sc; chope_t c; } chi_t;
 static chi_t CHI[NCHI]; static int NCH; static __thread int NOCH; static __thread const chi_t *CHCUR;
 S v3 chi_ld(const chi_t *I, v3 d) { return V(dot(d, I->ex), dot(d, I->ey), dot(d, I->ez)); }
@@ -35,7 +35,7 @@ static float ch_etch(float a, float y) {       // DOUZI AMBRÉE, dépoli sur le 
 #define CHOPE_T_DEFINED
 #include "chope.h"
 static void ch_put(v3 pos, float sc, float yaw, float tilt, float fill, float foam, float cold, float lace, float drip, int coaster) {
-    if (NCH >= NCHI) return; chi_t *I = &CHI[NCH++]; float c = cosf(yaw), s = sinf(yaw), ct = cosf(tilt), st = sinf(tilt); v3 ex0 = V(c, 0, -s);
+    if (NCH >= NCHI) { static int warned; if (!warned++) fprintf(stderr, "ch_put : plus de %d chopes dans l'image, les suivantes sont ignorées\n", NCHI); return; } chi_t *I = &CHI[NCH++]; float c = cosf(yaw), s = sinf(yaw), ct = cosf(tilt), st = sinf(tilt); v3 ex0 = V(c, 0, -s);
     I->ex = add(mul(ex0, ct), V(0, st, 0)); I->ey = add(mul(ex0, -st), V(0, ct, 0)); I->ez = V(s, 0, c); I->pos = pos; I->sc = sc; I->c = (chope_t){fill, foam, cold, lace, drip, T, coaster};
 }
 __attribute__((noinline)) static float ch_mapd(v3 p, int *m, float d) {
