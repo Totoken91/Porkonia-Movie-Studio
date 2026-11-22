@@ -5,11 +5,20 @@
 
 #include "p3d.h"
 #include "martin_dn.h"
-enum { N_FLOOR = M_USER, N_MARBLE, N_VELVET, N_RING, N_RUBY, N_DIAM, N_TEAR, N_PANEL, N_SATIN, N_FLARE, N_BOOT, N_MSKIN };
+enum { N_FLOOR = M_USER, N_LET, N_MARBLE, N_VELVET, N_RING, N_RUBY, N_DIAM, N_TEAR, N_PANEL, N_SATIN, N_FLARE, N_BOOT, N_MSKIN };
 static unsigned char *PLQ;
 static V MOON;
 static float RY, ROT, GLOW, LYC, FW0, RSC = 1;
 static int CROWD, MART;
+#define NBM 10
+#define NPART 240
+static V PP[NPART], PCOL[NPART]; static float PSZ[NPART], PIN[NPART];       // les poussières d'or, placées une fois par image
+static V GW[16], GN[16]; static float GTW[16];      /* 2 x NGEM */          // les pierres qui scintillent, une fois par image
+static int NB; static V BO[NBM], BA[NBM], BC[NBM]; static float BL[NBM], BR[NBM], BS[NBM];      // projecteurs : origine, axe, couleur, longueur, rayon au bout, force
+static void beam(V o, V target, V col, float r, float strength) {
+    if (NB >= NBM) return; V a = sub(target, o); float l = len(a);
+    BO[NB] = o; BA[NB] = mul(a, 1 / l); BL[NB] = l; BC[NB] = col; BR[NB] = r; BS[NB] = strength; NB++;
+}
 
 #define RR 0.38f
 #define Rr 0.065f
@@ -65,14 +74,14 @@ static float ring_q(V q, int *m) {      // q : repère de l'anneau, à l'échell
 }
 static float ring(V p, int *m) {
     float b = len(sub(p, VV(0, RY, 0))) - 0.62f * RSC;
-    if (b > 0.3f) return b;
+    P3D_EARLY(b, 0.3f);
     return ring_q(mul(ring_local(p), 1 / RSC), m) * RSC;
 }
 
 // ---------------------------------------------------------------- socle, coussin de velours, pompons, pupitre
 static float pedestal(V p, int *m) {
     float b = box(sub(p, VV(0, 1.6f, -0.6f)), VV(1.3f, 1.7f, 1.9f));
-    if (b > 0.4f) return b;
+    P3D_EARLY(b, 0.4f);
     float d = sqrtf(p.x * p.x + p.z * p.z) - 0.72f; d = fmaxf(d, fabsf(p.y - 1.1f) - 1.0f); *m = N_MARBLE;
     float e = box(sub(p, VV(0, 0.15f, 0)), VV(1.05f, 0.15f, 1.05f)) - 0.03f; if (e < d) { d = e; *m = M_GOLD; }
     e = box(sub(p, VV(0, 2.17f, 0)), VV(0.92f, 0.08f, 0.92f)) - 0.02f; if (e < d) { d = e; *m = M_GOLD; }
@@ -90,7 +99,7 @@ static float pedestal(V p, int *m) {
 static float colonnade(V p, int *m) {
     float r = sqrtf(p.x * p.x + p.z * p.z), b = fmaxf(fabsf(r - 15.0f) - 1.6f, p.y - 11.6f);
     *m = N_MARBLE;
-    if (b > 0.5f) return b;
+    P3D_EARLY(b, 0.5f);
     const float st = 6.28318f / 20.0f;
     float a = atan2f(p.x, p.z), k = roundf((a - st * 0.5f) / st), ac = k * st + st * 0.5f;
     V c = VV(15.0f * sinf(ac), 0, 15.0f * cosf(ac)), q = sub(p, c);
@@ -103,22 +112,16 @@ static float colonnade(V p, int *m) {
 }
 
 // ---------------------------------------------------------------- les visiteurs : cochons couronnés en larmes, tournés vers l'objet
-static float crowd(V p, int *m) {
-    float r = sqrtf(p.x * p.x + p.z * p.z);
-    float db = fmaxf(fmaxf(6.2f - r, r - 14.0f), p.y - 2.0f);
-    if (db > 0.6f) return db;
-    const float cs = 3.0f;
-    float ix = floorf(p.x / cs), iz = floorf(p.z / cs);
-    float cx = (ix + 0.5f) * cs, cz = (iz + 0.5f) * cs, lx = p.x - cx, lz = p.z - cz;
-    float dborder = fminf(cs * 0.5f - fabsf(lx), cs * 0.5f - fabsf(lz)) + 0.45f;
+#define CROWD_RMAX 1.40f      // un cochon de la foule : 1,583 x 0,85 = 1,35 au plus autour du centre de sa case (mesuré), larmes comprises
+static float crowd_cell(V q, float cx, float cz, float ix, float iz, int *m) {
     float rc = sqrtf(cx * cx + cz * cz);
-    if (rc < 6.6f || rc > 13.2f || (fabsf(cx) < 2.9f && cz < 0)) return dborder;
+    if (rc < 6.6f || rc > 13.2f || (fabsf(cx) < 2.9f && cz < 0)) return 1e9f;
     float h = hash2(ix, iz), h2 = hash2(iz + 3.0f, ix);
     float ang = atan2f(-cx, -cz) + (h - 0.5f) * 0.5f;
     V dir = VV(sinf(ang), 0, cosf(ang)), rt = VV(dir.z, 0, -dir.x);
     const float SC = 0.85f;
     float sob = 0.045f * fabsf(sinf(T * 7.0f + h * 20.0f));                           // les sanglots
-    V l = mul(VV(lx * rt.x + lz * rt.z, p.y - sob, lx * dir.x + lz * dir.z), 1 / SC);
+    V l = mul(VV(q.x * rt.x + q.z * rt.z, q.y - sob, q.x * dir.x + q.z * dir.z), 1 / SC);
     int mm; float d = pig(l, 0.0f, h2 < 0.12f ? M_GOLD : (h2 < 0.22f ? M_CHROME : M_PINK), &mm) * SC;
     float f = fract(T * 0.42f + h * 7.0f);                                             // une larme par œil : elle glisse sur la joue, puis tombe
     float fs = fminf(f, 0.75f) / 0.75f, u = fmaxf(f - 0.75f, 0) * 2.4f;
@@ -127,8 +130,16 @@ static float crowd(V p, int *m) {
     tc = add(tc, VV(0.08f * u, -4.5f * u * u, 0.12f * u));
     float e = (len(sub(VV(fabsf(l.x), l.y, l.z), tc)) - (0.042f - 0.008f * (u > 0))) * SC;
     if (e < d) { d = e; mm = N_TEAR; }
-    if (d < dborder) { *m = mm; return d; }
-    return dborder;
+    *m = mm; return d;
+}
+// les visiteurs : cochons couronnés en larmes, tournés vers l'objet. La zone de la foule est élargie de CROWD_RMAX :
+// les cochons du premier rang regardent vers le centre et leur groin dépasse vers l'intérieur (c'est lui qui disparaissait).
+static float crowd(V p, int *m) {
+    float r = sqrtf(p.x * p.x + p.z * p.z);
+    float db = fmaxf(fmaxf(6.6f - CROWD_RMAX - r, r - 13.2f - CROWD_RMAX), p.y - 2.1f);
+    *m = M_PINK;
+    P3D_EARLY(db, 0.6f);
+    return grid_xz(p, 3.0f, CROWD_RMAX, crowd_cell, m);
 }
 
 // ---------------------------------------------------------------- Martin Plaisir : le vrai modèle (le Danseur), qui roule des hanches en marchant
@@ -157,21 +168,106 @@ static float map(V p, int *m) {
     e = colonnade(p, &mm); if (e < d) { d = e; *m = mm; }
     if (CROWD) { e = crowd(p, &mm); if (e < d) { d = e; *m = mm; } }
     if (MART) d = dn_map(p, m, d);
-    if (LYC < 100) { e = letters(sub(p, VV(0, 0, 12.5f)), LYC, 0.6f); if (e < d) { d = e; *m = M_LETTER; } }
+    if (LYC < 100) {                                                        // TRÉSOR NATIONAL : lettres de prestige, biseau d'or arrondi
+        V q = sub(p, VV(0, 0, 12.5f)); const float r = 0.09f;
+        float d2 = lsdf(q.x, q.y - LYC) + r, dz = fabsf(q.z) - 0.55f + r;
+        e = fminf(fmaxf(d2, dz), 0) + sqrtf(sq(fmaxf(d2, 0)) + sq(fmaxf(dz, 0))) - r;
+        if (e < d) { d = e; *m = N_LET; } }
     return d;
 }
 
-static V sky(V rd) {
-    float h = rd.y;
-    V col = mixv(VV(0.26f, 0.06f, 0.15f), VV(0.02f, 0.02f, 0.08f), sstep(0.0f, 0.45f, h));
-    float az = atan2f(rd.x, rd.z);
-    if (h > 0.05f) {
-        float u = az * 90.0f, v = h * 140.0f; float s = hash2(floorf(u), floorf(v));
-        if (s > 0.985f) { float fx = fract(u) - 0.5f, fy = fract(v) - 0.5f;
-            col = add(col, mul(VV(1, 1, 0.9f), 1.5f * fmaxf(0, 1 - 12 * (fx * fx + fy * fy)) * (0.6f + 0.4f * sinf(T * 5 + s * 100)))); }
+// ---------------------------------------------------------------- le ciel : crépuscule étoilé, Voie lactée, comète, étoiles filantes
+static float vnoise(V p) {                                            // bruit de valeur 3D
+    V i = VV(floorf(p.x), floorf(p.y), floorf(p.z)), f = sub(p, i);
+    f = VV(f.x * f.x * (3 - 2 * f.x), f.y * f.y * (3 - 2 * f.y), f.z * f.z * (3 - 2 * f.z));
+    #define HH(a, b, c) fract(sinf((i.x + a) * 127.1f + (i.y + b) * 311.7f + (i.z + c) * 74.7f) * 43758.5453f)
+    float x00 = mixf(HH(0, 0, 0), HH(1, 0, 0), f.x), x10 = mixf(HH(0, 1, 0), HH(1, 1, 0), f.x);
+    float x01 = mixf(HH(0, 0, 1), HH(1, 0, 1), f.x), x11 = mixf(HH(0, 1, 1), HH(1, 1, 1), f.x);
+    #undef HH
+    return mixf(mixf(x00, x10, f.y), mixf(x01, x11, f.y), f.z);
+}
+static float fbm(V p, int o) { float s = 0, a = 0.5f; for (int k = 0; k < o; k++) { s += a * vnoise(p); p = mul(p, 2.03f); a *= 0.5f; } return s; }
+static V hash3(V c) { return VV(fract(sinf(dot(c, VV(127.1f, 311.7f, 74.7f))) * 43758.5f), fract(sinf(dot(c, VV(269.5f, 183.3f, 246.1f))) * 43758.5f), fract(sinf(dot(c, VV(113.5f, 271.9f, 124.6f))) * 43758.5f)); }
+static V star_col(float k) {                                         // température : bleues, blanches, dorées, orangées
+    return k < 0.25f ? VV(0.65f, 0.78f, 1.0f) : k < 0.6f ? VV(1.0f, 0.97f, 0.93f) : k < 0.85f ? VV(1.0f, 0.86f, 0.62f) : VV(1.0f, 0.68f, 0.45f);
+}
+static V stars(V rd, float scale, float dens, float size, float bright, float boost, int full) {     // une couche d'étoiles, une au plus par cellule de l'espace
+    V p = mul(rd, scale), c = VV(floorf(p.x), floorf(p.y), floorf(p.z)), acc = VV(0, 0, 0);
+    int nc = full ? 1 : 0;                                                // les petites étoiles : la seule cellule où l'on est (elles y tiennent)
+    for (int i = 0; i <= nc; i++) for (int j = 0; j <= nc; j++) for (int k = 0; k <= nc; k++) {
+        V cc = full ? add(c, VV(i - (fract(p.x) < 0.5f), j - (fract(p.y) < 0.5f), k - (fract(p.z) < 0.5f))) : c;
+        V h = hash3(cc); if (h.x > dens * boost) continue;
+        V sp = full ? add(add(cc, mul(h, 0.8f)), VV(0.1f, 0.1f, 0.1f)) : add(add(cc, mul(h, 0.4f)), VV(0.3f, 0.3f, 0.3f));
+        V sd = norm(sp); float ang = len(sub(rd, sd));
+        float mag = powf(h.y, 3.0f), r = size * (0.5f + 1.3f * mag);
+        float tw = 0.75f + 0.25f * sinf(T * (3.0f + 5.0f * h.z) + h.x * 50.0f);
+        float I = expf(-sq(ang / r)) * (0.4f + 2.6f * mag) * bright * tw;
+        if (mag > 0.70f) {                                                // aigrettes en étoile pour les plus brillantes
+            V up = norm(cross(sd, VV(0.31f, 0.92f, 0.23f))), rt = cross(sd, up); V dv = sub(rd, sd);
+            float x = fabsf(dot(dv, rt)), y = fabsf(dot(dv, up)), L = r * 9.0f * mag;
+            I += (expf(-x / (r * 0.35f)) * expf(-y / L) + expf(-y / (r * 0.35f)) * expf(-x / L)) * 0.8f * bright * mag * tw;
+        }
+        acc = add(acc, mul(star_col(h.z), I));
     }
+    return acc;
+}
+static V sky(V rd) {
+    float h = rd.y, az = atan2f(rd.x, rd.z);
+    // le dégradé du crépuscule : indigo profond en haut, violet, lueur rose-orangée à l'horizon
+    V col = mixv(VV(0.42f, 0.12f, 0.20f), VV(0.12f, 0.04f, 0.18f), sstep(0.0f, 0.16f, h));
+    col = mixv(col, VV(0.025f, 0.025f, 0.11f), sstep(0.10f, 0.45f, h));
+    col = mixv(col, VV(0.004f, 0.006f, 0.03f), sstep(0.40f, 0.95f, h));
+    col = add(col, mul(VV(0.30f, 0.11f, 0.05f), expf(-h * 14.0f) * (0.6f + 0.4f * sinf(az * 1.3f + 0.4f))));
+    if (h > -0.02f) {
+        float hv = sstep(-0.01f, 0.12f, h);                                 // les étoiles et la nuit apparaissent en montant
+        // la Voie lactée : une bande qui traverse le ciel, cœur lumineux, nuages d'étoiles, bandes de poussière
+        V MWN = norm(VV(-0.36f, 0.77f, -0.47f)); float bd = dot(rd, MWN);
+        float band = expf(-sq(bd / 0.20f)), core = expf(-sq(bd / 0.07f));
+        float n1 = 0, n2 = 0, dust = 0;
+        if (band > 0.01f) { n1 = fbm(mul(rd, 7.0f), 5); n2 = fbm(add(mul(rd, 16.0f), VV(3.1f, 1.7f, 9.2f)), 4);       // le bruit seulement près de la bande
+            dust = sstep(0.48f, 0.68f, fbm(add(mul(rd, 11.0f), VV(7.0f, 2.0f, 5.0f)), 4)) * expf(-sq(bd / 0.10f)); }
+        float mw = band * (0.35f + 1.1f * n1 * n1) + core * 0.9f * n2;
+        mw *= 1.0f - 0.85f * dust;
+        V mwc = mixv(VV(0.35f, 0.45f, 0.95f), VV(1.0f, 0.80f, 0.62f), core * 0.8f + 0.2f * n2);
+        col = add(col, mul(mwc, mw * 0.42f * hv));
+        col = add(col, mul(VV(0.55f, 0.25f, 0.75f), band * 0.05f * hv));            // halo violet de la bande
+        float mwb = 1.0f + 3.0f * band;                                     // plus d'étoiles dans la Voie lactée
+        V st = add(add(stars(rd, 200.0f, 0.035f, 0.0011f, 0.16f, 1.0f + 4.0f * band, 0), stars(rd, 90.0f, 0.04f, 0.0016f, 0.45f, 1.0f + band, 0)),
+                   stars(rd, 34.0f, 0.05f, 0.0024f, 1.5f, 1.0f, 1));
+        col = add(col, mul(st, hv * (1.0f - 0.6f * dust)));
+        // la comète : tête éclatante, queue d'ions turquoise fine et droite, queue de poussière dorée large et courbée
+        V CH = norm(VV(0.62f + 0.004f * T, 0.46f, 0.64f)), TD = norm(cross(CH, VV(0.15f, 0.95f, -0.25f))), TN = cross(CH, TD);
+        V dv = sub(rd, CH); float u = dot(dv, TD), v = dot(dv, TN);
+        if (u > -0.02f && u < 0.95f && fabsf(v) < 0.35f) {
+            float uu = fmaxf(u, 0), fall = powf(fmaxf(1 - uu / 0.95f, 0), 1.4f);
+            float ion = expf(-sq((v - 0.02f * uu) / (0.0035f + 0.018f * uu))) * fall;
+            float dst = expf(-sq((v + 0.25f * uu * uu) / (0.006f + 0.07f * uu))) * fall * fall;
+            float streak = 0.75f + 0.25f * sinf(v * 900.0f + uu * 40.0f);
+            col = add(col, mul(VV(0.45f, 0.95f, 1.0f), ion * 2.2f * streak));
+            col = add(col, mul(VV(1.0f, 0.80f, 0.55f), dst * 1.1f));
+        }
+        float hd = len(dv);
+        col = add(col, add(mul(VV(1.0f, 1.0f, 1.0f), 8.0f * expf(-sq(hd / 0.006f))), mul(VV(0.55f, 0.9f, 1.0f), 1.4f * expf(-hd / 0.03f))));
+        // étoiles filantes : une toutes les 1,7 s environ
+        float sn = floorf(T / 1.7f), sl = (T - sn * 1.7f) / 0.55f;
+        if (sl < 1) {
+            V a = hash3(VV(sn, 3, 7)), s0 = norm(VV(a.x * 1.6f - 0.8f, 0.30f + 0.45f * a.y, 0.6f + 0.4f * a.z)), sdir = norm(cross(s0, VV(a.z - 0.5f, 1, 0.3f)));
+            V hp = norm(add(s0, mul(sdir, 0.35f * sl))); V w = sub(rd, hp); float along = dot(w, sdir), perp = len(sub(w, mul(sdir, along)));
+            if (along < 0 && along > -0.12f) col = add(col, mul(VV(0.85f, 0.95f, 1.0f), expf(-sq(perp / 0.0016f)) * (1 + along / 0.12f) * sinf(3.14159f * sl) * 2.5f));
+        }
+    }
+    // la lune : un fin croissant
     float cm = dot(rd, MOON);
-    if (cm > 0.9988f) col = VV(1.0f, 0.95f, 0.8f); else col = add(col, mul(VV(0.4f, 0.35f, 0.3f), powf(fmaxf(cm, 0), 300)));
+    if (cm > 0.99955f && dot(rd, norm(add(MOON, VV(0.012f, 0.008f, 0)))) < 0.99962f) col = VV(1.3f, 1.2f, 0.95f);
+    else col = add(col, mul(VV(0.35f, 0.30f, 0.35f), powf(fmaxf(cm, 0), 600)));
+    // de fins nuages bas, éclairés en rose par en dessous
+    int cld = 0;
+    if (h > 0.0f && h < 0.22f) {
+        float cn = fbm(VV(az * 3.0f + 0.02f * T, h * 22.0f, 1.3f), 5), th = sstep(0.0f, 0.06f, h) * sstep(0.22f, 0.10f, h);
+        float c = sstep(0.52f, 0.70f, cn) * th;
+        if (c > 0.01f) { V cc = mixv(VV(0.10f, 0.05f, 0.18f), VV(0.95f, 0.42f, 0.42f), sstep(0.70f, 0.52f, cn) * 0.8f + 0.2f * (1 - h / 0.22f)); col = mixv(col, cc, c * 0.9f); cld = c > 0.5f; }
+    }
+    // la ville en silhouette, fenêtres allumées
     float bx = floorf(az * 40.0f); float bh = 0.03f + 0.08f * hash2(bx, 3.0f) * hash2(bx, 7.0f);
     int sil = h < bh;
     if (sil) {
@@ -180,7 +276,7 @@ static V sky(V rd) {
         if (h > 0.004f && hash2(floorf(az * 160.0f), floorf(h * 300.0f)) > 0.62f && wx > 0.3f && wy > 0.35f) col = VV(0.9f, 0.62f, 0.22f);
     }
     if (h < 0) col = VV(0.03f, 0.02f, 0.05f);
-    if (!sil && T > FW0) {
+    if (!sil && !cld && T > FW0) {
         float n0 = floorf((T - FW0) / 0.40f);
         for (int j = 0; j < 5; j++) {
             float n = n0 - j; if (n < 0) break;
@@ -218,6 +314,24 @@ static void material(int m, V p, V n, Mat *o) {
             float v = 0.92f + 0.08f * sinf(p.x * 2.1f + 3.0f * sinf(p.z * 1.3f + p.x * 0.4f));
             o->alb = mul(ck ? VV(0.06f, 0.05f, 0.065f) : VV(0.55f, 0.52f, 0.48f), v);
             o->f0 = 0.10f; o->shin = 120; o->rfl = 0.9f; o->rtrace = 1;
+        }
+        for (int b = 0; b < NB; b++) {                                    // la lumière des projecteurs posée sur le sol
+            V q = sub(p, BO[b]); float sb = dot(q, BA[b]); if (sb <= 0) continue;
+            float rr = BR[b] * sb / BL[b] + 0.05f, dd = len(sub(q, mul(BA[b], sb)));
+            float pool = expf(-sq(sq(dd / rr))) * (0.75f + 0.25f * sinf(dd / rr * 9.0f)) * 0.25f;
+            o->emi = add(o->emi, mul(mulv(o->alb, BC[b]), pool * (BR[b] < 1.5f ? 0.5f : 0.5f) * (T >= CUT[0] && T < CUT[1] ? 0.3f : 1.0f)));
+        }
+        break; }
+    case N_LET: {                                                         // face en émail bordeaux, liseré et biseau d'or poli, ampoules de music-hall
+        V q = sub(p, VV(0, 0, 12.5f)); float d2 = lsdf(q.x, q.y - LYC);
+        o->alb = VV(1.0f, 0.72f, 0.26f); o->metal = 1; o->shin = 220; o->emi = mul(VV(0.40f, 0.26f, 0.08f), 0.5f);
+        if (n.z < -0.7f && d2 < -0.11f) {
+            o->metal = 0; o->alb = VV(0.30f, 0.015f, 0.05f); o->f0 = 0.18f; o->shin = 260; o->rfl = 1;
+            if (fabsf(d2 + 0.26f) < 0.075f) {                                 // une rangée d'ampoules suit le contour, en retrait
+                float cx = fract(q.x / 0.32f) - 0.5f, cy = fract((q.y - LYC) / 0.32f) - 0.5f;
+                if (cx * cx + cy * cy < 0.07f) { float on = 0.5f + 0.5f * sinf(T * 7.0f - q.x * 0.9f - (q.y - LYC) * 0.5f);
+                    o->alb = VV(1.0f, 0.9f, 0.7f); o->emi = mul(VV(1.6f, 1.15f, 0.6f), 0.35f + 1.4f * on * on); o->rfl = 0.3f; }
+            }
         }
         break; }
     case N_MARBLE:
@@ -258,9 +372,10 @@ static void material(int m, V p, V n, Mat *o) {
 }
 
 static void scene_init(void) {
-    PIG_NOSHADOW = 1;
+    PIG_NOSHADOW = 1; P3D_GROUND = 1;
+    grid_check("un cochon de la foule", 3.0f, CROWD_RMAX);
     LSDF = slurp("letters.f32", LW * LH * 4); PLQ = slurp("plaque.rgb", 1024 * 768 * 3);
-    MOON = norm(VV(-0.5f, 0.42f, 1)); LDIR = norm(VV(-0.35f, 0.8f, -0.5f));
+    MOON = norm(VV(-0.55f, 0.36f, 1)); LDIR = norm(VV(-0.35f, 0.8f, -0.5f));
     SUNC = VV(1.7f, 1.45f, 1.15f); AMBU = VV(0.12f, 0.10f, 0.22f); AMBD = VV(0.06f, 0.03f, 0.03f); AMBC = VV(0.06f, 0.035f, 0.05f);
     RIMC = VV(0.6f, 0.35f, 0.2f); RIMD = norm(VV(0.3f, 0.3f, 1.0f));
     FOGC = VV(0.06f, 0.03f, 0.09f); FOGD = 0.003f; MAXD = 240; STEPS = 170;
@@ -272,11 +387,16 @@ static void frame_setup(V *cam, V *tgt, float *focal) {
     const float RY0 = 2.64f + RR + RBW - 0.02f, BEAT = 0.489f;
     RY = RY0; RSC = 1; ROT = 0.35f * T; GLOW = 0.04f + 0.03f * sinf(T * 1.3f); LYC = 200; FW0 = C5 + 0.2f;
     CROWD = T >= C1; MART = T >= C3; DNN = 0; DNLOOK = DN_MARTIN;
+    NB = 0;                                                               // les projecteurs du musée : quatre douches chaudes sur l'objet
+    for (int k = 0; k < 4; k++) { float a = 0.785f + k * 1.5708f;
+        beam(VV(14.0f * sinf(a), 10.9f, 14.0f * cosf(a)), VV(0, (T >= C5 ? RY0 + 2.3f * sstep(C5, C5 + 2.2f, T) : 2.2f), 0), VV(1.0f, 0.80f, 0.52f), 0.8f, (T >= C0 && T < C1) ? 0.06f : 0.30f); }       // en gros plan, la caméra est dans les faisceaux : on les adoucit
     const float MS = 2.3f, MYAW = atan2f(1.75f, 2.9f);       // Martin Plaisir : 1,9 m dans son repère, à l'échelle des cochons de la rotonde
     if (T < C0) {                                   // on entre dans la rotonde par le tapis rouge
         float u = T / C0;
         *cam = VV(0.5f * sinf(0.35f * T), mixf(1.6f, 2.4f, u), mixf(-27.0f, -8.5f, sstep(0, 1, u) * 0.6f + u * 0.4f));
-        *tgt = VV(0, 2.9f, 0); *focal = mixf(1.6f, 2.1f, u);
+        V CHd = norm(VV(0.62f + 0.004f * T, 0.46f, 0.64f)), up = add(*cam, mul(CHd, 40.0f));
+        float tilt = sstep(1.0f, 6.2f, T);
+        *tgt = mixv(up, VV(0, 2.9f, 0), tilt); *focal = mixf(1.35f, mixf(1.6f, 2.1f, u), tilt);
     } else if (T < C1) {                            // macro : l'objet tourne sur son coussin
         float tl = T - C0, a = mixf(-0.55f, 0.45f, tl / (C1 - C0));
         float dist = mixf(2.3f, 1.9f, tl / (C1 - C0));
@@ -299,17 +419,37 @@ static void frame_setup(V *cam, V *tgt, float *focal) {
         *cam = VV(0.9f, 1.05f, mz - 5.2f); *tgt = VV(0, 3.2f, mz + 6.0f); *focal = 1.35f;
     } else if (T < C5) {                            // cérémonie : TRÉSOR NATIONAL descend du ciel
         float tl = T - C4, u = tl / (C5 - C4);
-        LYC = mixf(48.0f, 6.0f, sstep(0.6f, 3.4f, tl));
+        { float k = clampf((tl - 0.6f) / 3.0f, 0, 1), e = 1 - powf(1 - k, 3.0f);                    // descente qui ralentit, puis un léger rebond
+          LYC = mixf(48.0f, 6.0f, e) + 0.35f * sinf(3.14159f * clampf((tl - 3.6f) / 0.6f, 0, 1)) * (tl > 3.6f); }
+        for (int k = 0; k < 6; k++) { float a = 0.5f + k * 1.047f, sw = 0.45f * sinf(T * 0.6f + k * 1.7f);
+            V cl = k % 3 == 0 ? VV(1.0f, 0.78f, 0.35f) : k % 3 == 1 ? VV(1.0f, 0.45f, 0.75f) : VV(0.45f, 0.85f, 1.0f);
+            beam(VV(17.5f * sinf(a), 0.4f, 17.5f * cosf(a)), VV(9.0f * sinf(a + sw), 46.0f, 9.0f * cosf(a + sw)), cl, 2.2f, 0.22f); }
         *cam = VV(mixf(5.5f, -4.5f, u), mixf(6.0f, 5.0f, u), mixf(-12.5f, -11.5f, u)); *tgt = VV(0, 4.6f, 4.0f); *focal = 1.3f;
         { dn_pose_t P; ml_sexy(tl / BEAT, 1.0f, &P); dn_place(&P, VV(-1.75f, 0, -2.9f), MYAW, MS); }
     } else {                                        // l'objet lévite, Martin lève le bras, feu d'artifice
         float tl = T - C5, k = sstep(0.0f, 2.2f, tl);
         LYC = 6.0f; RSC = 1 + 1.6f * k; RY = RY0 + 2.3f * k + 0.06f * sinf(tl * 2.2f) * k; ROT = 0.35f * C5 + (0.35f + 1.6f * k) * tl;
         GLOW = 0.08f + 1.4f * k;
+        for (int j = 0; j < 6; j++) { float a = 0.5f + j * 1.047f, sw = 0.45f * sinf(T * 0.6f + j * 1.7f), cv = sstep(1.0f, 3.0f, tl) * (1 - sstep(4.5f, 6.5f, tl));
+            V cl = j % 3 == 0 ? VV(1.0f, 0.78f, 0.35f) : j % 3 == 1 ? VV(1.0f, 0.45f, 0.75f) : VV(0.45f, 0.85f, 1.0f);
+            V sky_t = VV(9.0f * sinf(a + sw), 46.0f, 9.0f * cosf(a + sw)), ring_t = VV(0, RY + 25.0f, 0);       // les projecteurs se croisent au-dessus de l'anneau
+            beam(VV(17.5f * sinf(a), 0.4f, 17.5f * cosf(a)), mixv(sky_t, ring_t, cv), cl, 2.2f, 0.24f); }
         { dn_pose_t P; ml_sexy((C5 - C4 + tl) / BEAT, 1.0f, &P); dn_place(&P, VV(-1.75f, 0, -2.9f), MYAW, MS); }
         float v = sstep(0, 1, tl / 7.0f);
         *cam = VV(mixf(1.5f, 3.2f, v), mixf(0.9f, 3.0f, v), mixf(-8.2f, -14.5f, v)); *tgt = VV(0, mixf(4.2f, 5.6f, v), 2.0f); *focal = 1.45f;
     }
+    for (int i = 0; i < NPART; i++) {                                    // poussières d'or ; au final, 90 étincelles tournent autour de l'anneau
+        V h = hash3(VV(i, 17, 3));
+        if (T > C5 && i < 90) { float a = T * (1.2f + h.x) + i * 0.7f, r = (0.7f + 1.6f * h.y) * RSC; PP[i] = VV(r * cosf(a), RY + (h.z - 0.5f) * 2.2f * RSC + 0.4f * sinf(T * 2 + i), r * sinf(a)); }
+        else { float a = h.x * 6.2832f, r = 1.5f + 11.5f * sqrtf(h.y); PP[i] = VV(r * cosf(a) + 0.35f * sinf(T * 0.4f + i), 0.4f + fract(h.z + T * 0.025f * (0.5f + h.x)) * 9.0f, r * sinf(a) + 0.35f * cosf(T * 0.33f + i * 1.3f)); }
+        PSZ[i] = 0.018f + 0.03f * h.z; PIN[i] = (0.55f + 0.45f * sinf(T * (2.0f + 3.0f * h.y) + i)) * (T > C5 && i < 90 ? 9.0f : 5.0f);
+        PCOL[i] = h.y < 0.8f ? VV(1.0f, 0.78f, 0.38f) : VV(1.0f, 0.55f, 0.65f);
+    }
+    {   float c0 = cosf(ROT), s0 = sinf(ROT); const float st = 6.2831853f / NGEM;
+        for (int f = 0; f < 2; f++) for (int k = 0; k < NGEM; k++) { int g = f * NGEM + k; float zs = f ? 1.0f : -1.0f, ak = (k + 0.5f) * st, rg = gem_r(k);
+            V gl = VV(RR * cosf(ak), RR * sinf(ak), zs * (RBZ + 0.022f + 0.3f * rg));
+            GW[g] = add(VV(0, RY, 0), mul(VV(c0 * gl.x + s0 * gl.z, gl.y, -s0 * gl.x + c0 * gl.z), RSC)); GN[g] = VV(s0 * zs, 0, c0 * zs);
+            float tw = sinf(T * 2.3f + k * 2.39f + f * 1.1f); GTW[g] = tw > 0 ? powf(tw, 10.0f) : 0; } }
 #ifdef DANCECAM
     if (T >= C4) { *cam = VV(-2.72f, 2.6f, -9.34f); *tgt = VV(-1.75f, 2.3f, -2.9f); *focal = 1.7f; }
 #endif
@@ -317,20 +457,33 @@ static void frame_setup(V *cam, V *tgt, float *focal) {
 
 // halo doré façon image de synthèse des années 90 : lueur et rayons autour de l'objet, plus forts quand il lévite
 static V halo(V ro, V rd, V c) {
-    {   // les pierres scintillent : une étoile à quatre branches, de temps en temps, sur les pierres tournées vers la caméra
-        float c0 = cosf(ROT), s0 = sinf(ROT); const float st = 6.2831853f / NGEM;
-        for (int f = 0; f < 2; f++) for (int k = 0; k < NGEM; k++) {
-            float zs = f ? 1.0f : -1.0f, ak = (k + 0.5f) * st, rg = gem_r(k);
-            V gl = VV(RR * cosf(ak), RR * sinf(ak), zs * (RBZ + 0.022f + 0.3f * rg));
-            V gw = add(VV(0, RY, 0), mul(VV(c0 * gl.x + s0 * gl.z, gl.y, -s0 * gl.x + c0 * gl.z), RSC));
-            V nw = VV(s0 * zs, 0, c0 * zs), tg = sub(gw, ro); float dist = len(tg); tg = mul(tg, 1 / dist);
-            if (dot(nw, mul(tg, -1)) < 0.15f) continue;
-            float tw = sinf(T * 2.3f + k * 2.39f + f * 1.1f); tw = tw > 0 ? powf(tw, 10.0f) : 0; if (tw < 0.01f) continue;
-            V rt = norm(cross(VV(0, 1, 0), tg)), up = cross(tg, rt), dv = sub(rd, tg);
-            float x = fabsf(dot(dv, rt)) * dist, y = fabsf(dot(dv, up)) * dist, sz = 0.11f * RSC;
-            float star = expf(-x / (0.006f * RSC)) * expf(-y / sz) + expf(-y / (0.006f * RSC)) * expf(-x / sz) + 2.0f * expf(-(x * x + y * y) / sq(0.012f * RSC));
-            c = add(c, mul((k & 1) ? VV(0.9f, 0.95f, 1.0f) : VV(1.0f, 0.55f, 0.55f), tw * star * 1.6f));
-        }
+    float hitT = P3D_HITT;
+    for (int b = 0; b < NB; b++) {                                       // les faisceaux dans l'air (calcul exact, sans échantillons)
+        V w0 = sub(ro, BO[b]); float bb = dot(rd, BA[b]), dd = dot(rd, w0), ee = dot(BA[b], w0), den = fmaxf(1 - bb * bb, 1e-4f);
+        float t = (bb * ee - dd) / den, sb = clampf((ee - bb * dd) / den, 0, BL[b]);
+        if (t < 0) continue;
+        t = fmaxf(dot(sub(add(BO[b], mul(BA[b], sb)), ro), rd), 0);
+        float occl = hitT > 1e8f ? 1.0f : clampf((hitT + 0.6f - t) / 1.2f, 0, 1);       // devant le ciel : rien ne cache le faisceau
+        if (occl <= 0) continue;
+        float dist = len(sub(add(ro, mul(rd, t)), add(BO[b], mul(BA[b], sb)))), rr = BR[b] * sb / BL[b] + 0.06f;
+        float dust = 0.7f + 0.3f * sinf(sb * 2.3f + T * 0.7f) * sinf(sb * 0.9f - T * 0.4f);
+        float I = (expf(-sq(dist / rr)) + 1.6f * expf(-sq(dist / (0.28f * rr)))) * rr / fmaxf(sqrtf(den), 0.18f) * BS[b] * dust * occl * sstep(0, 2.0f, sb);
+        c = add(c, mul(BC[b], I));
+    }
+    for (int i = 0; i < NPART; i++) {                                    // les poussières d'or (positions calculées une fois par image)
+        V q = sub(PP[i], ro); float pj = dot(q, rd); if (pj < 0.25f || pj > hitT) continue;
+        float dd = len(sub(q, mul(rd, pj))), eff = fmaxf(PSZ[i], pj * 0.0022f);
+        float I = expf(-sq(dd / eff)) * sq(PSZ[i] / eff) * PIN[i];
+        c = add(c, mul(PCOL[i], I));
+    }
+    for (int g = 0; g < 2 * NGEM; g++) {                                 // les pierres scintillent (étoile à quatre branches)
+        if (GTW[g] < 0.01f) continue;
+        V tg = sub(GW[g], ro); float dist = len(tg); tg = mul(tg, 1 / dist);
+        if (dot(GN[g], mul(tg, -1)) < 0.15f) continue;
+        V rt = norm(cross(VV(0, 1, 0), tg)), up = cross(tg, rt), dv = sub(rd, tg);
+        float x = fabsf(dot(dv, rt)) * dist, y = fabsf(dot(dv, up)) * dist, sz = 0.11f * RSC;
+        float star = expf(-x / (0.006f * RSC)) * expf(-y / sz) + expf(-y / (0.006f * RSC)) * expf(-x / sz) + 2.0f * expf(-(x * x + y * y) / sq(0.012f * RSC));
+        c = add(c, mul((g & 1) ? VV(0.9f, 0.95f, 1.0f) : VV(1.0f, 0.55f, 0.55f), GTW[g] * star * 1.6f));
     }
     if (GLOW < 0.05f) return c;
     V tc = sub(VV(0, RY, 0), ro); float dist = len(tc); tc = mul(tc, 1 / dist);

@@ -27,7 +27,7 @@ static inline float sq(float x) { return x * x; }
 static inline float fract(float x) { return x - floorf(x); }
 static inline float hash2(float x, float y) { return fract(sinf(x * 127.1f + y * 311.7f) * 43758.5453f); }
 
-enum { M_PINK = 1, M_SNOUT, M_GOLD, M_BLACK, M_CHROME, M_RIBBON, M_LETTER, M_USER = 20 };
+enum { M_PINK = 1, M_SNOUT, M_GOLD, M_BLACK, M_CHROME, M_RIBBON, M_LETTER, M_NOSTRIL, M_USER = 20 };
 typedef struct { V alb, emi; int metal, rtrace, unlit; float f0, shin, rfl; } Mat;
 
 static float T, CUT[16]; static int NCUT;
@@ -35,6 +35,13 @@ static V LDIR, SUNC, AMBU, AMBD, AMBC, RIMC, RIMD, FOGC, LETTER_EMI;
 static float FOGD = 0.002f, MAXD = 300, EXPO = 1.0f, CONTRAST = 0.5f, METAL_LIT = 0.3f, METAL_ENV = 0.95f;
 static int STEPS = 150;
 static int PIG_NOSHADOW = 0;      // 1 : la peau des cochons couronnés ne reçoit pas d'ombre (le groin y faisait une tache dure, « gravée ») ; leurs ombres au sol restent
+// Les raccourcis de calcul (« loin de cet objet, saute ») passent tous par P3D_EARLY : ./scene check les coupe (NOBOUND = 1)
+// et compare l'image obtenue à l'image normale. Un raccourci trop optimiste fait disparaître un morceau d'objet : le contrôle le trouve.
+// Règle : la valeur rendue par un raccourci ne doit jamais dépasser la vraie distance à l'objet.
+static int NOBOUND = 0;
+static int P3D_GROUND = 0;     // 1 : y = 0 est un sol infini. Un rayon qui descend sans rien toucher (pas épuisés en rasant le sol au loin) le touche quand même, calculé exactement
+static __thread float P3D_HITT;       // distance du premier objet touché par le rayon de la caméra (1e9 : le ciel), pour POSTFX (faisceaux, particules)
+#define P3D_EARLY(b, thr) do { if (!NOBOUND && (b) > (thr)) return (b); } while (0)
 
 static float map(V p, int *m);
 static V sky(V rd);
@@ -69,7 +76,7 @@ static float box(V q, V b) {
 static float pig(V p, float ph, int bm, int *m) {
     float bnd = len(sub(p, VV(0, 1.0f, 0.2f))) - 1.75f;
     *m = bm;
-    if (bnd > 0.5f) return bnd;
+    P3D_EARLY(bnd, 0.5f);
     p.x = fabsf(p.x);
     float s = sinf(ph);
     float d = ell(p, VV(0, 0.95f, 0), VV(0.62f, 0.6f, 0.95f));
@@ -79,7 +86,11 @@ static float pig(V p, float ph, int bm, int *m) {
     d = fminf(d, cap(p, VV(0.33f, 0.55f, -0.5f - 0.15f * s), VV(0.33f, 0.13f, -0.5f - 0.4f * s), 0.13f));
     d = fminf(d, sph(p, VV(0, 1.15f, -0.98f), 0.11f));
     float e = cylz(sub(p, VV(0, 1.08f, 1.45f)), 0.2f, 0.1f) - 0.02f;
-    if (e < d) { d = e; *m = M_SNOUT; }
+    float nos = len(VV((p.x - 0.075f) / 0.75f, (p.y - 1.08f) / 1.25f, p.z - 1.585f)) * 0.75f - 0.048f;      // les narines : deux creux ovales dans le groin
+    e = fmaxf(e, -nos);
+    if (e < d) { d = e; *m = (bm == M_GOLD || bm == M_CHROME) ? bm : M_SNOUT; }                         // un cochon d'or a un groin d'or
+    float fondn = len(VV((p.x - 0.075f) / 0.75f, (p.y - 1.08f) / 1.25f, p.z - 1.535f)) * 0.75f - 0.030f;    // le fond sombre des narines
+    if (fondn < d) { d = fondn; *m = M_NOSTRIL; }
     e = sph(p, VV(0.2f, 1.33f, 1.34f), 0.07f);
     if (e < d) { d = e; *m = M_BLACK; }
     V q = sub(p, VV(0, 1.68f, 0.95f)); float rr = sqrtf(q.x * q.x + q.z * q.z);
@@ -88,6 +99,36 @@ static float pig(V p, float ph, int bm, int *m) {
     if (e < d) { d = e; *m = (bm == M_GOLD) ? M_RIBBON : M_GOLD; }
     return d;
 }
+
+
+// ---- foules et objets répétés sur une grille (plan xz) : une seule case évaluée, donc aussi rapide qu'une boucle écrite à la main,
+// mais sans artefact. fn(l, cx, cz, ix, iz, m) : distance au contenu de la case (ix, iz) de centre (cx, 0, cz), l = p moins ce centre,
+// 1e9 si la case est vide. rmax : distance horizontale maximale entre le centre d'une case et son contenu.
+//  - le contenu doit tenir dans sa case (rmax <= cs / 2) : sinon ce qui dépasse dans la case voisine disparaît. grid_check() le vérifie
+//    au démarrage et arrête le programme avec un message, au lieu de laisser passer un objet coupé ;
+//  - le pas vers la case voisine est exact : distance au bord + (cs / 2 - rmax), jamais plus (l'ancien « + 0,45 » à la main pouvait
+//    faire entrer un rayon dans le cochon d'à côté) ;
+//  - la zone occupée par la foule se borne avec grid_zone_margin(rmax) : le bord de la zone recule de rmax (un cochon du premier rang
+//    qui regarde vers l'intérieur dépasse de sa case : c'est son groin qui disparaissait).
+typedef float (*p3d_cell_fn)(V l, float cx, float cz, float ix, float iz, int *m);
+static void grid_check(const char *what, float cs, float rmax) {
+    if (rmax > cs * 0.5f) { fprintf(stderr, "p3d : %s ne tient pas dans sa case (rmax %.2f > moitie de case %.2f) : agrandir la case ou reduire l'objet\n", what, rmax, cs * 0.5f); exit(3); }
+}
+static float grid_xz(V p, float cs, float rmax, p3d_cell_fn fn, int *m) {
+    float ix = floorf(p.x / cs), iz = floorf(p.z / cs), cx = (ix + 0.5f) * cs, cz = (iz + 0.5f) * cs, d;
+    if (NOBOUND) {                                                     // contrôle seulement : les 3 x 3 cases, sans pas de bord
+        int mm; d = 1e9f;
+        for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) {
+            float jx = ix + i, jz = iz + j, kx = (jx + 0.5f) * cs, kz = (jz + 0.5f) * cs;
+            float e = fn(VV(p.x - kx, p.y, p.z - kz), kx, kz, jx, jz, &mm); if (e < d) { d = e; *m = mm; } }
+        return d;
+    }
+    float lx = p.x - cx, lz = p.z - cz;
+    float step = fminf(cs * 0.5f - fabsf(lx), cs * 0.5f - fabsf(lz)) + (cs * 0.5f - rmax) + 0.002f;
+    d = fn(VV(lx, p.y, lz), cx, cz, ix, iz, m);
+    return d < step ? d : step;
+}
+static inline float grid_zone_margin(float rmax) { return rmax; }
 
 static void *slurp(const char *f, size_t n) {
     void *b = malloc(n); FILE *fp = fopen(f, "rb");
@@ -105,12 +146,14 @@ static float *LSDF;
 static float lsdf(float x, float y) {
     float bx = fabsf(x) - 9.0f, by = fabsf(y - 4.5f) - 4.5f;
     float db = fminf(fmaxf(bx, by), 0) + sqrtf(sq(fmaxf(bx, 0)) + sq(fmaxf(by, 0)));
-    if (db > 0.0f) return db + 0.25f;
     float u = (x + 9.0f) / 18.0f * LW - 0.5f, v = (9.0f - y) / 9.0f * LH - 0.5f;
     u = clampf(u, 0, LW - 1.001f); v = clampf(v, 0, LH - 1.001f);
     int iu = (int)u, iv = (int)v; float fu = u - iu, fv = v - iv;
     float *r = LSDF + iv * LW + iu;
-    return mixf(mixf(r[0], r[1], fu), mixf(r[LW], r[LW + 1], fu), fv);
+    float val = mixf(mixf(r[0], r[1], fu), mixf(r[LW], r[LW + 1], fu), fv);
+    // hors du cadre : borne sûre. Les lettres sont dans le cadre (distance >= db), et à au moins val - db du point du cadre le plus proche.
+    // (l'ancien « db + 0,25 » coupait les lettres posées sur le bas du cadre ; « db » seul faisait un mur fantôme sur le bord)
+    return db > 0.0f ? fmaxf(db, val - db) : val;
 }
 static float letters(V p, float y0, float depth) {
     float d2 = lsdf(p.x, p.y - y0), dz = fabsf(p.z) - depth;
@@ -126,6 +169,7 @@ static int base_material(int m, Mat *o) {
     case M_CHROME: o->alb = VV(0.92f, 0.92f, 0.96f); o->metal = 1; o->shin = 140; return 1;
     case M_BLACK: o->alb = VV(0.02f, 0.02f, 0.02f); o->shin = 120; return 1;
     case M_RIBBON: o->alb = VV(0.38f, 0.03f, 0.07f); return 1;
+    case M_NOSTRIL: o->alb = VV(0.10f, 0.015f, 0.03f); o->shin = 10; return 1;
     }
     return 0;
 }
@@ -150,13 +194,16 @@ static float shadow(V ro) {
 }
 
 static V trace(V ro, V rd, int depth) {
-    float t = 0.02f; int m = 0, hit = 0, steps = depth ? STEPS / 2 : STEPS;
-    for (int i = 0; i < steps; i++) {
-        float d = map(add(ro, mul(rd, t)), &m);
+    float t = 0.02f, d = 1e9f; int m = 0, hit = 0, steps = depth ? STEPS / 2 : STEPS, i;
+    for (i = 0; i < steps; i++) {
+        d = map(add(ro, mul(rd, t)), &m);
         if (d < 0.0012f * t + 0.0008f) { hit = 1; break; }
         t += d * 0.92f;
         if (t > MAXD) break;
     }
+    if (!hit && i == steps && t < MAXD && d < 0.004f * t) hit = 1;       // pas épuisés à moins d'un pixel d'une surface : c'est un bord rasé, on le touche
+    if (!hit && P3D_GROUND && rd.y < -1e-4f) { float tg = -ro.y / rd.y; if (tg > 0 && tg < MAXD) { t = tg; hit = 1; map(add(ro, mul(rd, t)), &m); } }
+    if (depth == 0) P3D_HITT = hit ? t : 1e9f;
     if (!hit) return sky(rd);
     V p = add(ro, mul(rd, t)), n = normal(p);
     Mat o = { VV(0.5f, 0.5f, 0.5f), VV(0, 0, 0), 0, 0, 0, 0.04f, 40, 0 };
@@ -187,8 +234,67 @@ static V trace(V ro, V rd, int depth) {
 
 static inline float tone(float c) { c = powf(1 - expf(-c * EXPO), 0.4545f); return mixf(c, c * c * (3 - 2 * c), CONTRAST); }
 
+
+// ---- ./scene check F0 F1 PAS [coupes...] : chaque PAS image, rend la profondeur en 160 x 120 avec et sans raccourcis (NOBOUND)
+// et compte les pixels qui diffèrent : un objet qui manque ou qui est coupé. Code de sortie 1 s'il y en a.
+static __thread int P3D_MHIT; static __thread float P3D_NEAR;       // plus courte approche d'une surface avant l'arrêt du rayon (en largeur de pixel ~ 0,004)
+static float p3d_march(V ro, V rd, int careful) {
+    // passe normale : exactement les pas du rendu (c'est là que se cachent les sauts de trop) ; passe de référence : sans raccourci, à pas prudents
+    float t = 0.02f, k = careful ? 0.5f : 0.92f, d = 1e9f, near = 1e9f; P3D_NEAR = 1e9f; int m, n = careful ? STEPS * 12 : STEPS, i;
+    for (i = 0; i < n; i++) {
+        d = map(add(ro, mul(rd, t)), &m);
+        if (d < 0.0012f * t + 0.0008f) { P3D_MHIT = m; return t; }
+        near = fminf(near, d / t); P3D_NEAR = near;
+        t += d * k; if (t > MAXD) break;
+    }
+    if (!careful && i == n && t < MAXD && d < 0.004f * t) { P3D_MHIT = m; return t; }       // comme dans trace()
+    if (P3D_GROUND && rd.y < -1e-4f) { float tg = -ro.y / rd.y; if (tg > 0 && tg < MAXD) { map(add(ro, mul(rd, tg)), &m); P3D_MHIT = m; return tg; } }       // comme dans trace()
+    P3D_MHIT = near < 0.004f ? -2 : -1;       // -2 : raté, mais passé à moins d'un pixel d'une surface (un bord frôlé, pas un trou)
+    return -1;
+}
+static int p3d_check(int argc, char **argv) {
+    if (argc < 5) { fprintf(stderr, "usage: %s check F0 F1 PAS [coupes...]\n", argv[0]); return 2; }
+    int F0 = atoi(argv[2]), F1 = atoi(argv[3]), st = atoi(argv[4]), bad = 0; const int CW = 160, CH = 120;
+    for (NCUT = 0; NCUT < argc - 5 && NCUT < 16; NCUT++) CUT[NCUT] = atof(argv[5 + NCUT]);
+    scene_init();
+    static float d0[160 * 120], d1[160 * 120], nr0[160 * 120]; static int m0[160 * 120], m1[160 * 120];
+    for (int f = F0; f < F1; f += st) {
+        T = f / FPS; V cam, tgt; float focal; frame_setup(&cam, &tgt, &focal);
+        V fw = norm(sub(tgt, cam)), rt = norm(cross(VV(0, 1, 0), fw)), up = cross(fw, rt);
+        for (int pass = 0; pass < 2; pass++) {
+            NOBOUND = pass; float *D = pass ? d1 : d0;
+            #pragma omp parallel for schedule(dynamic, 4)
+            for (int y = 0; y < CH; y++) for (int x = 0; x < CW; x++) {
+                float px = (x + 0.5f) / CW * 2 - 1, py = 1 - (y + 0.5f) / CH * 2;
+                D[y * CW + x] = p3d_march(cam, norm(add(mul(fw, focal), add(mul(rt, px * (float)W / H), mul(up, py)))), pass);
+                (pass ? m1 : m0)[y * CW + x] = P3D_MHIT; if (!pass) nr0[y * CW + x] = P3D_NEAR;
+            }
+        }
+        NOBOUND = 0;
+        static unsigned char df[160 * 120]; int n = 0, ex = 0, ey = 0;
+        for (int i = 0; i < CW * CH; i++) { float a = d0[i], b = d1[i];
+            // un objet coupé : le rayon rate là où la référence touche, ou bien il touche autre chose (le groin coupé laisse voir la tête derrière)
+            df[i] = ((a < 0) != (b < 0) && !(a < 0 && m0[i] == -2)) || (a > 0 && b > 0 && m0[i] != m1[i] && fabsf(a - b) > 0.02f * b + 0.02f);
+            if (b > 0 && (a < 0 || a > b) && nr0[i] < 0.004f) df[i] = 0;       // le rayon a frôlé l'objet à moins d'un pixel : un bord, pas un trou
+            if (fmaxf(a, b) > 0.4f * MAXD) df[i] = 0; }       // l'horizon lointain (sol rasant, dans le brouillard) : le rendu y manque de pas, ce n'est pas un objet coupé
+        for (int i = 0; i < CW * CH; i++) {       // un pixel compte s'il a un voisin qui diffère aussi : un vrai trou fait une tache
+            if (!df[i]) continue; int x = i % CW, y = i / CW;
+            int nb = (x > 0 && df[i - 1]) || (x < CW - 1 && df[i + 1]) || (y > 0 && df[i - CW]) || (y < CH - 1 && df[i + CW]);
+            if (nb) { if (!n) { ex = x; ey = y; } n++; }
+        }
+        if (n) {       // on dit quel objet manque (vu par le calcul sans raccourci) et où il est
+            bad++; float px = (ex + 0.5f) / CW * 2 - 1, py = 1 - (ey + 0.5f) / CH * 2; int i = ey * CW + ex, mm = -1;
+            V rd = norm(add(mul(fw, focal), add(mul(rt, px * (float)W / H), mul(up, py)))); float tt = d1[i] > 0 ? d1[i] : d0[i];
+            V hp = add(cam, mul(rd, tt)); NOBOUND = 1; map(hp, &mm); NOBOUND = 0;
+            printf("image %d (%.2f s) : %d pixels differents ; ex. (%d, %d) : avec raccourcis %.2f, sans %.2f, objet %d en (%.2f, %.2f, %.2f)\n", f, T, n, ex, ey, d0[i], d1[i], mm, hp.x, hp.y, hp.z); fflush(stdout); }
+    }
+    printf(bad ? "CONTROLE : %d images avec un objet coupe ou manquant\n" : "CONTROLE : aucun artefact de raccourci\n", bad);
+    return bad ? 1 : 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) { fprintf(stderr, "usage: %s F0 F1 [cut1 cut2 ...] > frames.rgb\n", argv[0]); return 1; }
+    if (!strcmp(argv[1], "check")) return p3d_check(argc, argv);
     int F0 = atoi(argv[1]), F1 = atoi(argv[2]);
     for (NCUT = 0; NCUT < argc - 3 && NCUT < 16; NCUT++) CUT[NCUT] = atof(argv[3 + NCUT]);
     scene_init();

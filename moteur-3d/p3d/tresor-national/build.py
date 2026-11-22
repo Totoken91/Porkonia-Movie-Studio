@@ -71,6 +71,15 @@ def audio():
 W, H = 768, 576
 
 
+def bloom(raw):
+    """bloom : les lumières bavent doucement autour d'elles (trois rayons de flou), mélange en « écran »."""
+    f = raw.astype(np.float32) / 255
+    br = np.clip(f - 0.74, 0, None) / 0.26
+    b = 0.40 * cv2.GaussianBlur(br, (0, 0), 2.5) + 0.30 * cv2.GaussianBlur(br, (0, 0), 8) + 0.22 * cv2.GaussianBlur(br, (0, 0), 24)
+    b *= np.array([1.0, 0.92, 0.82], np.float32)
+    return (1 - (1 - f) * (1 - np.clip(b, 0, 1))) * 255
+
+
 def _proj(P, t):
     """projette un point de la scène dans l'image 768x576 au temps t (caméra du gros plan, comme dans tresor.c)."""
     C0, C1 = CT[0], CT[1]; u = (t - C0) / (C1 - C0); a = -0.55 + u; dist = 2.3 - 0.4 * u
@@ -156,7 +165,7 @@ def video():
     with open("frames.rgb", "rb") as f:
         for k in range(NF):
             raw = np.frombuffer(f.read(512 * 384 * 3), np.uint8).reshape(384, 512, 3)
-            img = cv2.resize(raw, (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+            img = cv2.resize(bloom(raw), (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32)
             t = k / FPS
             if t < 0.4: img *= t / 0.4
             img = overlays(img, t)
@@ -186,7 +195,7 @@ if __name__ == "__main__":
     if sys.argv[1] == "audio": audio()
     elif sys.argv[1] == "still":       # python3 build.py still t raw.rgb out.png : une image test avec les incrustations
         t = float(sys.argv[2]); raw = np.fromfile(sys.argv[3], np.uint8).reshape(384, 512, 3)
-        img = cv2.resize(raw, (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+        img = cv2.resize(bloom(raw), (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32)
         logo = np.array(pork_look.logo_layer((W, H), 176, "corner")).astype(np.float32); la = logo[..., 3:4] / 255
         img = overlays(img, t); img = img * (1 - la) + logo[..., :3] * la
         Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(sys.argv[4])
