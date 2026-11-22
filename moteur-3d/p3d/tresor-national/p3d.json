@@ -1,0 +1,8 @@
+{
+  "letters": ["TRÉSOR", "NATIONAL"],
+  "panels": [{"file": "plaque", "size": [1024, 768], "emblem": true,
+              "lines": [["FICHE TECHNIQUE", 40, 0], ["COCKRING HOMOLOGUÉ", 76, 1], ["« MARTIN PLAISIR »", 76, 1],
+                        ["OR 24 CARATS · NEUF RUBIS · HUIT DIAMANTS", 42, 0], ["DIAMÈTRE 4,2 CM · POIDS 312 G", 42, 0],
+                        ["HOMOLOGATION PORKOMOTO N° 0001", 42, 0], ["FORGÉ À DOUZI CITY EN 1987", 42, 0],
+                        ["PORTEURS AUTORISÉS : UN SEUL", 42, 0]]}]
+}

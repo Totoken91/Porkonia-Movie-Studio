@@ -187,6 +187,10 @@ Ce qui a changé dans `citizen.h` et `w24_shade.c` (valable pour tous les films)
 
 Conséquence : les séquences déjà rendues du film « 24 heures à Porkonia » ne se recalculent plus à l'identique (mains, bouches, ombres sur les citoyens). Pour retrouver exactement l'ancien rendu, reprendre `citizen.h` et `w24_shade.c` du commit f4d4414.
 
+## Le moteur des clips courts (p3d) et Martin Plaisir hors du film (22 novembre 2026)
+
+Le dossier `p3d/` range le moteur léger des clips Canal Pork (skill porkonia-3d), l'adaptateur qui y fait tourner le Danseur (Martin Plaisir) sans toucher à `danseur.h`, sa nouvelle danse devant l'anneau (`ml_sexy.h`) et le clip « trésor national ». Mode d'emploi : `p3d/README.md`.
+
 ## Ce qui reste à faire
 
 - Le montage (`seqpost.py`, `filmpost.py`) utilise encore l'habillage Channel Pork de novembre 2026 : titrages dans un bandeau bordeaux, compteur de magnétoscope tout du long, ancienne intro. La chaîne s'appelle Canal Pork depuis le 14 novembre 2026 et son habillage a changé. Brancher le nouvel habillage avant toute nouvelle livraison.
