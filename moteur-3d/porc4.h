@@ -10,6 +10,27 @@
 // Dans la parade : le meneur est chromé, 6 % des cochons sont en or, 14 % en chrome, les autres en rose.
 // Matières officielles : rose = couleur (0,95 0,47 0,52), reflet 5 %, brillance 40 ; œil = noir (0,02) très brillant ;
 //                        or = métal (1,0 0,74 0,30) ; chrome = métal (0,92 0,93 0,96).
+static float p4_crown(v3 q) {      // repère : centre de la couronne ; anneau horizontal, la pointe avant face à +z
+    float r = len2(q.x, q.z), sec = 6.2831853f / 5, a = atan2f(q.z, q.x) - 1.5707963f;
+    a -= sec * roundf(a / sec);
+    float s = r * a, u = fabsf(a) / (sec * 0.5f);                                   // s : le long du bandeau ; u : 0 au milieu d'une pointe, 1 au creux
+    // la vraie couronne, d'une seule pièce : paroi évasée dont le bord monte en cinq pointes, creux arrondis, perles soudées
+    float y = q.y, R = 0.232f + 0.050f * sstep(-0.07f, 0.19f, y);                   // la paroi s'évase vers le haut
+    float top = 0.040f + 0.135f * powf(1 - u, 1.45f) - 0.012f * sstep(0.75f, 1.0f, u);       // le contour : pointes effilées, creux arrondis
+    float wall = fmaxf(fmaxf(fabsf(r - R) - 0.010f, (y - top) * 0.62f), -0.068f - y) - 0.008f;   // épaisseur 0,036 avec arêtes adoucies
+    float rim = len2(r - 0.240f, y + 0.064f) - 0.027f;                              // gros bourrelet roulé à la base
+    float Rm = 0.232f + 0.050f * sstep(-0.07f, 0.19f, 0.03f);
+    float mold = len2(r - Rm - 0.019f, y - 0.03f) - 0.0085f;                          // fine moulure sur le bandeau
+    float Rp = 0.232f + 0.050f * sstep(-0.07f, 0.19f, 0.2f);
+    float pearl = len(V(r - Rp, y - 0.199f, s)) - 0.026f;                            // la perle au bout de la pointe
+    float Rc = 0.232f + 0.050f * sstep(-0.07f, 0.19f, -0.018f);                      // cabochon net : un ovale bombé serti d'un petit cordon
+    v3 cq = V(r - Rc - 0.019f, y + 0.018f, s);
+    float cab = len(V(cq.x / 0.55f, cq.y / 1.0f, cq.z / 1.3f)) * 0.55f - 0.0165f;
+    float bez = len2(len2(cq.y / 1.0f, cq.z / 1.3f) - 0.024f, cq.x + 0.004f) - 0.006f;
+    float d = smin(wall, pearl, 0.022f);
+    d = smin(d, rim, 0.006f); d = fminf(d, mold); d = fminf(d, fminf(cab, bez));
+    return d;
+}
 static float p4_sdf(v3 p, float ph, float amp, int skin, int black, int gold, int *m) {
     *m = skin;
     float bd = len(sub(p, V(0, 0.95f, 0.25f))) - 1.8f;
@@ -32,16 +53,8 @@ static float p4_sdf(v3 p, float ph, float amp, int skin, int black, int gold, in
     float e = len(sub(p, V(0.2f, 1.22f, 1.34f))) - 0.055f;
     if (e < d) { d = e; *m = black; }
     q = sub(p, V(0, 1.53f, 0.9f));
-    if (len(q) < 0.7f) {    // la couronne (redessinée le 22 nov. 2026, Kenny : « garde-les simples mais moins moches ») :
-        // un bandeau plein et droit, un bourrelet en bas et un en haut, cinq pointes triangulaires pleines, une perle d'or à chaque pointe
-        float r = len2(q.x, q.z), sec = 6.2831853f / 5, a = atan2f(q.z, q.x) - 1.5707963f;
-        a -= sec * roundf(a / sec);
-        float s = r * a, lx = r - 0.245f;
-        float cr = box2(fabsf(lx) - 0.022f, fabsf(q.y + 0.005f) - 0.055f) - 0.006f;
-        cr = fminf(cr, fminf(len2(lx, q.y + 0.065f) - 0.022f, len2(lx, q.y - 0.048f) - 0.015f));
-        float y = q.y - 0.05f, w = 0.072f * (1 - y / 0.115f);
-        float tri = fmaxf(fmaxf(fmaxf(fabsf(s) - w, -y), y - 0.115f) * 0.85f, fabsf(lx) - 0.016f) - 0.006f;
-        cr = fminf(cr, fminf(tri, len(V(lx, q.y - 0.185f, s)) - 0.026f));
+    if (len(q) < 0.7f) {    // la couronne, redessinée le 22 nov. 2026 (Kenny : « simple mais moins moche », « un vrai modèle ») : d'une seule pièce
+        float cr = p4_crown(q);
         if (cr < d) { d = cr; *m = gold; }
     }
     return d;
