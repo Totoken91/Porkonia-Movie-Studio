@@ -22,7 +22,7 @@ Ce qui rend ce genre d'artefact impossible à laisser passer :
 - Autres défauts trouvés par le contrôle et corrigés dans le moteur : les lettres géantes (« + 0,25 » qui coupait le bas des lettres, puis un mur fantôme sur le bord du cadre : borne sûre maintenant), le sol rasant au loin (`P3D_GROUND = 1` : un rayon qui descend touche le plan y = 0 calculé exactement), les bords rasés quand les pas sont épuisés (touchés s'ils sont à moins d'un pixel).
 
 Ajouts au moteur le 22 nov. 2026 :
-- Le cochon couronné a deux narines creusées (fond sombre `M_NOSTRIL`), et un cochon d'or ou chromé a le groin de sa matière (plus jamais de groin rose sur un cochon d'or).
+- Le cochon couronné de p3d **est** le cochon standard n° 2 (`../porc4.h`), inclus tel quel : groin fondu dans la tête, deux narines rondes toutes simples, couronne d'or à cinq pointes, une seule matière pour tout le corps (un cochon d'or a donc un groin d'or). L'ancien cochon fait main de p3d (groin rose collé, sans narines) est supprimé. p3d.h fournit pour ça les noms du moteur du film (`v3`, `V()`, `sdEll`, `cylZ`...), ce qui permet aussi d'inclure `danseur.h` tel quel.
 - `P3D_HITT` : la distance du premier objet touché, pour les effets POSTFX (faisceaux, particules qui passent derrière les objets).
 - `POSTFX` : une scène peut définir `#define POSTFX ma_fonction` avant `#include "p3d.h"` pour ajouter un effet à chaque rayon (le halo doré et les étincelles en étoile des pierres du clip).
 - `PIG_NOSHADOW = 1` : la peau des cochons couronnés ne reçoit plus d'ombre. En gros plan, le groin faisait une tache sombre à bord dur sur le visage (on aurait dit qu'il était gravé). Leurs ombres au sol restent.

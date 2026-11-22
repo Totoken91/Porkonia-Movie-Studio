@@ -27,7 +27,7 @@ static inline float sq(float x) { return x * x; }
 static inline float fract(float x) { return x - floorf(x); }
 static inline float hash2(float x, float y) { return fract(sinf(x * 127.1f + y * 311.7f) * 43758.5453f); }
 
-enum { M_PINK = 1, M_SNOUT, M_GOLD, M_BLACK, M_CHROME, M_RIBBON, M_LETTER, M_NOSTRIL, M_USER = 20 };
+enum { M_PINK = 1, M_SNOUT, M_GOLD, M_BLACK, M_CHROME, M_RIBBON, M_LETTER, M_USER = 20 };
 typedef struct { V alb, emi; int metal, rtrace, unlit; float f0, shin, rfl; } Mat;
 
 static float T, CUT[16]; static int NCUT;
@@ -73,31 +73,32 @@ static float box(V q, V b) {
     return fminf(fmaxf(d.x, fmaxf(d.y, d.z)), 0) + len(VV(fmaxf(d.x, 0), fmaxf(d.y, 0), fmaxf(d.z, 0)));
 }
 
+// ---- le cochon couronné : c'est le MODÈLE STANDARD n° 2 du moteur du film (../porc4.h), inclus tel quel, jamais recopié ni retouché.
+// Groin fondu dans la tête, deux narines rondes toutes simples, couronne d'or à cinq pointes, queue en tire-bouchon, une seule matière pour le corps.
+// Repère : pattes sur y = 0, regarde vers +z, environ 2,6 de long. ph = phase des pattes. bm : matière du corps (M_PINK, M_GOLD, M_CHROME).
+// Noms du moteur du film, pour inclure ses fichiers tels quels (porc4.h, danseur.h) :
+typedef V v3;
+#define V(a, b, c) VV((a), (b), (c))
+#define S static inline
+#ifndef PI
+#define PI 3.14159265f
+#endif
+S float len2(float a, float b) { return sqrtf(a * a + b * b); }
+S v3 nrm(v3 a) { return norm(a); }
+S v3 mix3(v3 a, v3 b, float t) { return mixv(a, b, t); }
+S float sdEll(v3 p, v3 r) {
+    float k0 = len(V(p.x / r.x, p.y / r.y, p.z / r.z));
+    float k1 = len(V(p.x / (r.x * r.x), p.y / (r.y * r.y), p.z / (r.z * r.z)));
+    return k0 * (k0 - 1.0f) / (k1 + 1e-6f);
+}
+S float sdCap(v3 p, v3 a, v3 b, float r) { return cap(p, a, b, r); }
+S float box2(float dx, float dy) { return fminf(fmaxf(dx, dy), 0) + len2(fmaxf(dx, 0), fmaxf(dy, 0)); }
+S float sdBox(v3 p, v3 b) { return box(p, b); }
+S float cylY(v3 p, float r, float h) { return box2(len2(p.x, p.z) - r, fabsf(p.y) - h); }
+S float cylZ(v3 p, float r, float h) { return box2(len2(p.x, p.y) - r, fabsf(p.z) - h); }
+#include "../porc4.h"
 static float pig(V p, float ph, int bm, int *m) {
-    float bnd = len(sub(p, VV(0, 1.0f, 0.2f))) - 1.75f;
-    *m = bm;
-    P3D_EARLY(bnd, 0.5f);
-    p.x = fabsf(p.x);
-    float s = sinf(ph);
-    float d = ell(p, VV(0, 0.95f, 0), VV(0.62f, 0.6f, 0.95f));
-    d = smin(d, sph(p, VV(0, 1.15f, 0.95f), 0.48f), 0.15f);
-    d = smin(d, sph(p, VV(0.3f, 1.58f, 0.85f), 0.16f), 0.05f);
-    d = fminf(d, cap(p, VV(0.33f, 0.55f, 0.5f + 0.15f * s), VV(0.33f, 0.13f, 0.5f + 0.4f * s), 0.13f));
-    d = fminf(d, cap(p, VV(0.33f, 0.55f, -0.5f - 0.15f * s), VV(0.33f, 0.13f, -0.5f - 0.4f * s), 0.13f));
-    d = fminf(d, sph(p, VV(0, 1.15f, -0.98f), 0.11f));
-    float e = cylz(sub(p, VV(0, 1.08f, 1.45f)), 0.2f, 0.1f) - 0.02f;
-    float nos = len(VV((p.x - 0.075f) / 0.75f, (p.y - 1.08f) / 1.25f, p.z - 1.585f)) * 0.75f - 0.048f;      // les narines : deux creux ovales dans le groin
-    e = fmaxf(e, -nos);
-    if (e < d) { d = e; *m = (bm == M_GOLD || bm == M_CHROME) ? bm : M_SNOUT; }                         // un cochon d'or a un groin d'or
-    float fondn = len(VV((p.x - 0.075f) / 0.75f, (p.y - 1.08f) / 1.25f, p.z - 1.535f)) * 0.75f - 0.030f;    // le fond sombre des narines
-    if (fondn < d) { d = fondn; *m = M_NOSTRIL; }
-    e = sph(p, VV(0.2f, 1.33f, 1.34f), 0.07f);
-    if (e < d) { d = e; *m = M_BLACK; }
-    V q = sub(p, VV(0, 1.68f, 0.95f)); float rr = sqrtf(q.x * q.x + q.z * q.z);
-    e = fmaxf(fabsf(rr - 0.24f) - 0.03f, fabsf(q.y) - 0.09f);
-    e = fminf(e, len(sub(VV(q.x, q.y, fabsf(q.z)), VV(0.17f, 0.14f, 0.17f))) - 0.07f);
-    if (e < d) { d = e; *m = (bm == M_GOLD) ? M_RIBBON : M_GOLD; }
-    return d;
+    return p4_sdf(p, ph, 1.0f, bm, M_BLACK, M_GOLD, m);
 }
 
 
@@ -162,14 +163,13 @@ static float letters(V p, float y0, float depth) {
 
 static int base_material(int m, Mat *o) {
     switch (m) {
-    case M_PINK: o->alb = VV(0.95f, 0.47f, 0.55f); o->f0 = 0.06f; o->shin = 60; o->rfl = 1; return 1;
+    case M_PINK: o->alb = VV(0.95f, 0.47f, 0.52f); o->f0 = 0.05f; o->shin = 40; o->rfl = 1; return 1;       // matière officielle du cochon standard
     case M_SNOUT: o->alb = VV(0.86f, 0.33f, 0.43f); return 1;
-    case M_GOLD: o->alb = VV(1.0f, 0.72f, 0.26f); o->metal = 1; o->shin = 90; return 1;
+    case M_GOLD: o->alb = VV(1.0f, 0.74f, 0.30f); o->metal = 1; o->shin = 90; return 1;
     case M_LETTER: o->alb = VV(1.0f, 0.72f, 0.26f); o->metal = 1; o->shin = 90; o->emi = LETTER_EMI; return 1;
-    case M_CHROME: o->alb = VV(0.92f, 0.92f, 0.96f); o->metal = 1; o->shin = 140; return 1;
+    case M_CHROME: o->alb = VV(0.92f, 0.93f, 0.96f); o->metal = 1; o->shin = 140; return 1;
     case M_BLACK: o->alb = VV(0.02f, 0.02f, 0.02f); o->shin = 120; return 1;
     case M_RIBBON: o->alb = VV(0.38f, 0.03f, 0.07f); return 1;
-    case M_NOSTRIL: o->alb = VV(0.10f, 0.015f, 0.03f); o->shin = 10; return 1;
     }
     return 0;
 }

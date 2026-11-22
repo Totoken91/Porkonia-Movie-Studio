@@ -112,7 +112,7 @@ static float colonnade(V p, int *m) {
 }
 
 // ---------------------------------------------------------------- les visiteurs : cochons couronnés en larmes, tournés vers l'objet
-#define CROWD_RMAX 1.40f      // un cochon de la foule : 1,583 x 0,85 = 1,35 au plus autour du centre de sa case (mesuré), larmes comprises
+#define CROWD_RMAX 1.40f      // un cochon standard (porc4.h) de la foule : 1,573 x 0,85 = 1,34 au plus autour du centre de sa case (mesuré), larmes comprises
 static float crowd_cell(V q, float cx, float cz, float ix, float iz, int *m) {
     float rc = sqrtf(cx * cx + cz * cz);
     if (rc < 6.6f || rc > 13.2f || (fabsf(cx) < 2.9f && cz < 0)) return 1e9f;
@@ -125,8 +125,8 @@ static float crowd_cell(V q, float cx, float cz, float ix, float iz, int *m) {
     int mm; float d = pig(l, 0.0f, h2 < 0.12f ? M_GOLD : (h2 < 0.22f ? M_CHROME : M_PINK), &mm) * SC;
     float f = fract(T * 0.42f + h * 7.0f);                                             // une larme par œil : elle glisse sur la joue, puis tombe
     float fs = fminf(f, 0.75f) / 0.75f, u = fmaxf(f - 0.75f, 0) * 2.4f;
-    V tdir = norm(VV(0.50f + 0.12f * fs, 0.40f - 1.05f * fs, 0.80f - 0.12f * fs));
-    V tc = add(VV(0, 1.15f, 0.95f), mul(tdir, 0.495f + 0.03f * sstep(0.85f, 1.0f, fs)));
+    V tdir = norm(VV(0.46f + 0.12f * fs, 0.36f - 1.05f * fs, 0.80f - 0.12f * fs));      // tête du cochon standard : centre (0, 1,05, 0,95), rayon 0,48
+    V tc = add(VV(0, 1.05f, 0.95f), mul(tdir, 0.495f + 0.03f * sstep(0.85f, 1.0f, fs)));
     tc = add(tc, VV(0.08f * u, -4.5f * u * u, 0.12f * u));
     float e = (len(sub(VV(fabsf(l.x), l.y, l.z), tc)) - (0.042f - 0.008f * (u > 0))) * SC;
     if (e < d) { d = e; mm = N_TEAR; }
