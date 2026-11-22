@@ -662,7 +662,7 @@ static v3 wlight(v3 p, v3 n, float ao, float sun) {
     return L;
 }
 static float wtrace(v3 ro, v3 rd, int *m, float tmax, int steps, float *glow) {
-    float t = 0.05f, g = 0;
+    float t = fmaxf(0.05f, TSTART), g = 0; TSTART = 0;       // TSTART : le départ donné par le cône (rayons primaires seulement)
     for (int i = 0; i < steps && t < tmax; i++) { v3 p = add(ro, mul(rd, t)); float d = wmap(p, m);
         if (d < 0.001f * (1 + t * 0.5f)) { *glow = g; return t; }
         if (WLAMP > 0) g += wglow(p) * fminf(d, 0.9f);

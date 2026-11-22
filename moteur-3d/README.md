@@ -240,6 +240,16 @@ Mesures sur les 30 sondes (2 cœurs Xeon, 0,2 à 1,4 s par trame) :
 - Essayé et écarté : pas allongés avec retour en arrière (« over-relaxation », ω = 1,3 et 1,6) : +0 à 3 % et des différences visibles ; compilation guidée par profil (PGO) : rien gagné et des centaines de fenêtres changées ; déroulage des boucles : rien ; AVX-512 contre AVX2 : même vitesse, mêmes images.
 - Ce qui reste à gagner se fait scène par scène (boîtes englobantes plus serrées autour des foules et des décors chers), à mesurer avec les sondes.
 
+### Rendre plus vite (22 novembre 2026)
+
+Le vrai levier, c'est la machine : le moteur passe presque entièrement en parallèle, donc le temps se divise à peu près par le nombre de cœurs. Le serveur de Claude n'en a que 2. `./vitesse_pc.sh` construit le moteur sur un PC, rend les 30 sondes et donne le temps d'une séquence, du clip et d'un documentaire de 20 min sur cette machine (WSL sous Windows, gcc de Homebrew sous macOS).
+
+Essayé dans le moteur lui-même, mesuré sur les sondes :
+- Le cône (`CONE=1`) : un rayon par case de 4 x 4 pixels ouvre la route dans le vide, les rayons de la case partent de là. 10 à 30 % plus vite sur les séquences de jour et le clip (rien sur les séquences avec lanternes, qui intègrent leur halo le long du rayon). Vérifié : aucun rayon ne part au-delà de son vrai impact. Mais les drapeaux et les foules en grille ne donnent pas une vraie distance, et le rayon peut y sauter un objet fin autrement qu'avant (quelques blocs différents par trame). Bon pour les brouillons, pas par défaut.
+- Un seul échantillon d'anticrénelage au lieu de deux : +15 %, bords plus crénelés (PSNR 35). Précision des rayons relâchée : +6 %, silhouettes qui bougent (PSNR 28). Reflets moins précis : +5 %. Écartés.
+- Le clip se rend déjà sans anticrénelage (`noaa` dans `clip_render.py`) ; le Porko Effect lisse de toute façon.
+- Au-delà : porter le moteur sur la carte graphique (un vrai programme, pas un artefact), des dizaines de fois plus rapide. Gros chantier.
+
 ## Ce qui reste à faire
 
 - Le montage (`seqpost.py`, `filmpost.py`) utilise encore l'habillage Channel Pork de novembre 2026 : titrages dans un bandeau bordeaux, compteur de magnétoscope tout du long, ancienne intro. La chaîne s'appelle Canal Pork depuis le 14 novembre 2026 et son habillage a changé. Brancher le nouvel habillage avant toute nouvelle livraison.
