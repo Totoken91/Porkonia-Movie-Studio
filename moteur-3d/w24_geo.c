@@ -15,11 +15,12 @@ static void w_bounds(void) {
     WB0 = V(1e9f, 1e9f, 1e9f); WB1 = V(-1e9f, -1e9f, -1e9f);
     for (int k = 0; k < WN; k++) { WB0 = V(fminf(WB0.x, WPX[k] - 1.2f), fminf(WB0.y, WPY[k] - 0.1f), fminf(WB0.z, WPZ[k] - 1.2f)); WB1 = V(fmaxf(WB1.x, WPX[k] + 1.2f), fmaxf(WB1.y, WPY[k] + 2.3f), fmaxf(WB1.z, WPZ[k] + 1.2f)); }
 }
+static __thread int CZSKIP = -1;       // (22 nov. 2026) un personnage que le rayon d'ombre ignore : lui-même, pour la lumière qui tourne sur son côté à l'ombre
 static float wpeople(v3 p, int *m) {
     *m = C_SKIN; if (NOCZ || WN == 0 || (WDBG & 8)) return 1e9f;
     float bb = fmaxf(fmaxf(fmaxf(WB0.x - p.x, p.x - WB1.x), fmaxf(WB0.z - p.z, p.z - WB1.z)), fmaxf(WB0.y - p.y, p.y - WB1.y)); if (bb > 1.0f) return bb;
     float d = 1e9f; int mm;
-    for (int k = 0; k < WN; k++) { float sc = WCZ[k].sc; v3 l = w_local(p, k); float bd = (len(sub(l, V(0, 0.80f, 0))) - 1.08f) * sc;
+    for (int k = 0; k < WN; k++) { if (k == CZSKIP) continue; float sc = WCZ[k].sc; v3 l = w_local(p, k); float bd = (len(sub(l, V(0, 0.80f, 0))) - 1.08f) * sc;
         float e = bd > 0.65f ? bd : fmaxf(cz_sdf(&WCZ[k], &WRG[k], &WPP[k], l, &mm) * sc, bd); if (e < d) { d = e; if (bd <= 0.65f) *m = mm; } }
     return d;
 }

@@ -216,6 +216,16 @@ Ce qui a été corrigé (sans rien changer aux images, sauf Douzi City, voir plu
 - Au-delà de 6 chopes, `ch_put` les ignorait en silence et le code qui suivait déplaçait la sixième : il prévient maintenant (la limite reste 6 : la monter change l'arrondi de certaines images).
 - `po.sh` appelait `filmclip_po` que rien ne construisait : `PO=1 ./buildclip.sh` le construit, et `po.sh` le fait tout seul s'il manque.
 
+### Le banc d'essai : des scènes-pièges (22 novembre 2026)
+
+`./banc.sh nom [soleil] [épreuves]` rend en images fixes HD treize scènes construites pour faire sortir les défauts d'ombre, de matière et de modèle (plan 51 du clip, au studio), et les assemble en planches dans `banc/` : visage au soleil rasant, visage à contre-jour, bras au ciel, deux citoyens collés, la foule des 24 allures, vue pile du dessus, pieds au ras du sol, main qui tient la chope, Martin Plaisir, marcheurs de profil, chope à contre-jour, caméra à 50 cm du groin, six gestes (bras contre le corps). Le deuxième argument tourne le soleil par huitièmes de tour : passer au moins 0, 2, 4 et 6. `WDBG=64` (normales), `WDBG=2` (sans ombres) et `WDBG=32` (occlusion) disent d'où vient un défaut.
+
+Ce qu'il a trouvé et ce qui est corrigé :
+- **Ombre tranchée sur le côté à l'ombre des personnages** (le plus visible) : la lumière qui « tourne » autour de la peau et de l'étoffe était coupée net par l'ombre du personnage lui-même. Une ligne droite en travers de l'arrière de la tête, une bande sombre à bord dur le long de la joue, et à contre-jour une grande tache brune sur le visage de Martin Plaisir. Le rayon d'ombre ignore maintenant le personnage lui-même de ce côté-là (`shadow_cz_back`) ; l'ombre d'un voisin, d'un décor ou d'un objet reste. Pour les foules en grille, le rayon traverse d'abord le corps (`shadow_czt`). Les images changent un peu sur les sondes où des citoyens sont au soleil (bords des visages et des vêtements, côté ombre), rien ailleurs.
+- Le motif de var 8 à 15 d'un plan du clip lance des confettis (`CVAR & 8`) : c'est voulu, mais à savoir pour les plans d'essai. Le banc les coupe.
+
+Vu et laissé : en très gros plan (caméra à 50 cm), le bord des narines montre deux petites encoches. Invisible à distance normale.
+
 ### Le hasard du décor et les fenêtres qui changent
 
 Les fenêtres allumées, les tenues de la foule, les flocons sortent de `hash2`, un `sin(...) * 43758`. La moindre différence d'arrondi change son résultat, et le compilateur l'arrondit différemment selon l'endroit où il l'insère. Conséquence : toucher n'importe quelle ligne du moteur peut allumer ou éteindre des fenêtres de Douzi City (c'est le cas de cette révision : 2 fenêtres sur la sonde de Douzi City ; toutes les autres sondes sont identiques à l'octet), et une compilation optimisée autrement (PGO) change des centaines de fenêtres. Même compilateur, AVX2 ou AVX-512 : images identiques, donc un autre PC donne les mêmes trames s'il a la même version de gcc.

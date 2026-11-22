@@ -902,6 +902,46 @@ static void clip_setup(int K, float s) {
                 else { P.hand[hs] = V(sg * 0.27f + P.pel.x, 1.02f, 0.04f); P.epole[hs] = V(sg, 0, -0.7f); } }
             DNLOOK = (dn_look_t){SK[k], HC[k][0], HC[k][1], 2, CT[k], 1.28f, 1.16f, 1, 1, 1, 0, RBCL[k]}; dn_place(&P, V(-2.22f + 0.74f * i, 0, (i & 1) ? 0.30f : -0.25f), PI, k ? 0.80f : 0.85f); }
         cam(V(0, 1.10f, -13.6f), V(0, 3.30f, 0), 3.0f); break; }
+    case 51: { CHV = 5; CHSUN = 0; WSNOW = 0; WFAR = 80.0f; WAMBU = V(0.17f, 0.14f, 0.13f); WAMBD = V(0.07f, 0.045f, 0.035f); CBEAMK = 0; WSUNC = V(0.95f, 0.90f, 0.82f);
+        // (22 nov. 2026) LE BANC D'ESSAI : des scènes-pièges au studio pour débusquer les défauts d'ombre, de matière et de modèle.
+        // CVAR = l'épreuve (0 à 11), CPAT = l'azimut du soleil par huitièmes de tour (0 : devant à gauche de la caméra), CTS = l'instant.
+        WCONF = 0; APERT = 0;
+        static const float EL[13] = {0.12f, 0.35f, 0.5f, 0.45f, 0.18f, 0.9f, 0.25f, 0.4f, 0.12f, 0.45f, 0.3f, 0.3f, 0.6f};
+        int v = CVAR; float az = 0.7853982f * (CPAT + (v == 1 || v == 10 ? 4 : 0)) - 0.785f, el = EL[v % 13];
+        WSUN = nrm(V(sinf(az) * cosf(el), sinf(el), -cosf(az) * cosf(el)));
+        #define BK_ONE(who, x, z, yaw) do { cz_t *C_ = &WCZ[WN]; *C_ = (who); pose_t *P_ = &WPP[WN]; cz_rest(C_, P_); cz_idle(P_, T, 0.3f + 0.17f * WN); w_place(WN, x, 0, z, yaw); WN++; } while (0)
+        switch (v) {
+        case 0: case 1: BK_ONE(CZC[3], 0, 0, PI); cam(V(0.25f, 1.15f, -2.2f), V(0, 1.02f, 0), 3.2f); break;                  // le visage, soleil rasant ; 1 : à contre-jour
+        case 2: { BK_ONE(CZC[5], 0, 0, PI); pose_t *P = &WPP[WN - 1]; cz_cheers(P, 1.0f); P->hand[1] = V(-0.30f, 1.02f, 0.10f); P->hand[0] = V(0.30f, 1.05f, 0.08f); P->open = 0.6f;
+            cz_rig(&WCZ[WN - 1], P, &WRG[WN - 1]); cam(V(0.5f, 1.0f, -2.9f), V(0, 0.95f, 0), 2.0f); break; }                // les deux bras au ciel
+        case 3: { BK_ONE(CZC[1], -0.33f, 0, PI - 0.5f); BK_ONE(CZC[14], 0.33f, 0, PI + 0.5f); pose_t *P = &WPP[WN - 2]; cz_cheers(P, 1.0f); P = &WPP[WN - 1]; P->hand[1] = V(-0.30f, 0.62f, 0.30f);
+            for (int k = WN - 2; k < WN; k++) cz_rig(&WCZ[k], &WPP[k], &WRG[k]); cam(V(0.2f, 1.0f, -3.4f), V(0, 0.8f, 0), 2.3f); break; }       // deux citoyens collés
+        case 4: for (int i = 0; i < 24; i++) BK_ONE(CZC[i], -2.75f + 1.1f * (i % 6) + 0.25f * ((i / 6) & 1), -1.2f + 0.95f * (i / 6), PI + 0.3f * sinf(i * 2.1f));
+            cam(V(-4.5f, 3.2f, -7.5f), V(0, 0.5f, 0.3f), 2.0f); break;                                                                   // la foule des 24 allures, soleil bas
+        case 5: for (int i = 0; i < 6; i++) BK_ONE(CZC[(i * 5) % 24], -1.1f + 1.1f * (i % 3), -0.55f + 1.1f * (i / 3), 0.9f * i);
+            cam(V(0, 6.0f, 0), V(0, 0, 0), 2.0f); break;                                                                                   // pile au-dessus : les têtes, les cheveux
+        case 6: BK_ONE(CZC[13], -0.35f, 0, PI); BK_ONE(CZC[2], 0.35f, 0, PI); cam(V(0.1f, 0.16f, -1.9f), V(0, 0.12f, 0), 2.6f); break;      // les pieds au ras du sol : baskets et sabots
+        case 7: { BK_ONE(CZC[4], 0, 0, PI); pose_t *P = &WPP[WN - 1]; cz_cheers(P, 1.0f); cz_rig(&WCZ[WN - 1], P, &WRG[WN - 1]);
+            int k = WN - 1; const rig_t *R = &WRG[k]; float sc = WCZ[k].sc, cy = WPC[k], sy = WPS[k]; v3 hl = add(R->ot, add(add(mul(R->tx, R->ha[0].x), mul(R->ty, R->ha[0].y)), mul(R->tz, R->ha[0].z + 0.03f)));
+            v3 hw = V(WPX[k] + sc * (hl.x * cy + hl.z * sy), WPY[k] + sc * hl.y, WPZ[k] + sc * (-hl.x * sy + hl.z * cy));
+            ch_put(V(0, 0, 0), 1.5f, atan2f(cy, -sy), -0.2f, 0.9f, 0.6f, 0.4f, 0, 0.6f, 0); chi_t *I = &CHI[NCH - 1]; I->pos = sub(hw, mul(add(mul(I->ex, 0.090f), mul(I->ey, 0.083f)), 1.5f));
+            cam(V(-0.3f, 1.15f, -1.9f), V(hw.x, hw.y - 0.05f, hw.z), 2.8f); break; }                                                       // la main qui tient la chope
+        case 8: { dn_pose_t P; float yw; ml_dance(CB, &P, &yw); dn_place(&P, V(0, 0, 0), PI + yw, 1.0f); cam(V(0.3f, 1.75f, -2.6f), V(0, 1.65f, 0), 3.0f); break; }   // Martin, le visage, soleil rasant
+        case 9: for (int i = 0; i < 4; i++) { BK_ONE(CZC[(i * 7) % 24], -0.6f + 0.4f * i, -1.5f + 1.0f * i, PI * 0.5f); pose_t *P = &WPP[WN - 1]; cz_walk(P, CTS * 6.0f + i * 1.6f, 1.0f); cz_rig(&WCZ[WN - 1], P, &WRG[WN - 1]); }
+            cam(V(5.0f, 0.9f, -0.2f), V(0, 0.6f, -0.2f), 2.2f); break;                                                                            // quatre marcheurs de profil, à quatre moments du pas
+        case 10: ch_put(V(0, 0.04f, 0), 10.0f, 0.4f, 0, 0.8f, 0.6f, 0.5f, 0.3f, 1, 1); cam(V(0, 1.1f, -5.0f), V(0, 0.9f, 0), 3.2f); break;   // la chope à contre-jour
+        case 12: { static const int WHO[6] = {0, 9, 18, 6, 21, 11};       // six silhouettes, six gestes : les bras ne doivent rentrer ni dans le ventre ni dans les joues
+            for (int i = 0; i < 6; i++) { BK_ONE(CZC[WHO[i]], -2.2f + 0.88f * i, 0, PI); pose_t *P = &WPP[WN - 1];
+                switch (i) { case 0: cz_wave(P, T, 1.0f); break; case 1: cz_salute(P, 1.0f); break; case 2: cz_cheers(P, 1.0f); P->hand[1] = V(-0.30f, 1.05f, 0.08f); break;
+                case 3: P->hand[0] = V(0.10f, 0.32f, 0.36f); P->hand[1] = V(-0.10f, 0.30f, 0.36f); break;       // les mains sur le ventre
+                case 4: P->hand[0] = V(0.22f, 0.62f, 0.55f); P->hand[1] = V(-0.22f, 0.62f, 0.55f); break;      // les bras tendus devant
+                default: P->hand[0] = V(0.02f, 0.75f, 0.30f); P->hand[1] = V(-0.02f, 0.80f, 0.28f); break; }  // les mains jointes sous le menton
+                cz_rig(&WCZ[WN - 1], P, &WRG[WN - 1]); }
+            cam(V(0.0f, 1.1f, -6.2f), V(0, 0.65f, 0), 2.1f); break; }
+        default: BK_ONE(CZC[16], 0, 0, PI); cam(V(0.05f, 1.06f, -0.55f), V(0, 1.02f, 0), 1.6f); break;                                   // la caméra à 50 cm du groin
+        }
+        #undef BK_ONE
+        break; }
     case 49: { CHV = 5; CHSUN = 0; WSNOW = 0; WFAR = 80.0f; WSUN = nrm(V(-0.5f, 0.7f, -0.5f)); WSUNC = V(0.95f, 0.90f, 0.82f); WAMBU = V(0.17f, 0.14f, 0.13f); WAMBD = V(0.07f, 0.045f, 0.035f); CBEAMK = 0;      // la démo des Ranga Boyz sur le squelette du Danseur (var 1 élancés, 2 trapus), caméra de répétition
         float b = CB - 96.0f; RBE = CPAT ? 1.0f : 0.0f; rbd_group(b, 0, 0, PI, CVAR); WCONF = 0.9f * sstep(27.6f, 28.6f, b) * sstep(32.6f, 32.0f, b);       // motif 1 : la version énergique
         cam(V(1.2f - 0.6f * u, 1.40f, -8.0f + 0.8f * eu), V(0, 0.80f, 0.9f), CVAR == 2 ? 3.1f : CVAR >= 10 ? 2.7f : 3.4f); break; }

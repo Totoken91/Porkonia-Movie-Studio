@@ -22,3 +22,4 @@ tests/new/
 tests/asan/
 tests/*_asan
 tests/sondes.png
+banc/

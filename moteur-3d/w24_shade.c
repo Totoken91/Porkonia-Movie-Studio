@@ -682,13 +682,26 @@ static float shadow_cz(v3 ro, v3 rd) {       // (17 nov. 2026) l'ombre sur les p
     for (int i = 0; i < 64 && t < 75; i++) { float d = map(add(ro, mul(rd, t)), &m); if (d < 0.002f && t > 0.15f) { INSH = 0; NOBND = 0; return 0; } res = fminf(res, sstep(0.0f, 0.15f, t) * 9.0f * fmaxf(d, 0) / t + (1 - sstep(0.0f, 0.15f, t))); t += clampf(d * 0.9f, 0.015f, t < 3.0f ? 0.25f : 6.0f); }
     INSH = 0; NOBND = 0; res = clampf(res, 0, 1); return res * res * (3 - 2 * res);
 }
+static float shadow_czt(v3 ro, v3 rd) {       // (22 nov. 2026) le côté du personnage tourné à l'opposé du soleil : la lumière qui « tourne » autour de la peau et de l'étoffe (sss)
+    // y était coupée net par l'ombre du personnage lui-même, en une ligne droite sur la tête et le dos (le terminateur, vu de profil). On traverse d'abord
+    // son propre corps, puis on cherche les vrais obstacles : l'ombre d'un voisin, d'un décor ou d'une oreille reste.
+    float t = 0; int m; INSH = 1; NOBND = 1;
+    for (int i = 0; i < 96 && t < 3.0f; i++) { float d = map(add(ro, mul(rd, t)), &m); if (d > 0.004f) break; t += fmaxf(-d, 0) + 0.008f; }
+    INSH = 0; NOBND = 0; if (t >= 3.0f) return 0;
+    return shadow_cz(add(ro, mul(rd, t)), rd);
+}
+static float shadow_cz_back(v3 p, v3 n) {       // le côté à l'ombre d'un personnage placé : son propre corps ne compte pas, les autres obstacles si
+    if (WN > 0) { v3 l; int k = wwho(p, &l); if (len2(p.x - WPX[k], p.z - WPZ[k]) < 0.9f * WCZ[k].sc && p.y - WPY[k] < 2.4f * WCZ[k].sc) {
+        CZSKIP = k; float r = shadow_cz(add(p, mul(n, 0.02f)), WSUN); CZSKIP = -1; return r; } }
+    return shadow_czt(add(p, mul(n, -0.05f)), WSUN);       // un personnage de foule (grille) : on traverse son corps
+}
 static v3 wshade(v3 ro, v3 rd, int depth, float *zout) {
     int m; float glow, t = wtrace(ro, rd, &m, depth ? WFAR * 0.35f : WFAR, depth ? 90 : 260, &glow); v3 col;
     if (t < 0) { col = wsky(ro, rd); *zout = 1e4f; }
     else {
         v3 p = add(ro, mul(rd, t)), n = normal(p, t); mat_t M; wmaterial(p, n, m, t, &M);
         CZ_BND = 0.7f; NOBND = 1; float ao = (depth || (WDBG & 4)) ? 0.85f : (((m >= 200 && m < 240) || (m >= 500 && m < 520)) ? ambocc_cz(p, n) : ambocc(p, n)); NOBND = 0; CZ_BND = CZ_BND0; float f5 = powf(1 - fmaxf(-dot(rd, n), 0), 5), ndl = dot(n, WSUN), si = w_sunI(p) * (WSUNC.x > 0.01f);
-        float sh = (si > 0.01f && (ndl > 0 || M.sss > 0.5f)) ? ((depth || (WDBG & 2)) ? 1.0f : (((m >= 200 && m < 240) || (m >= 500 && m < 520)) ? shadow_cz(add(p, mul(n, ndl > 0 ? 0.02f : -0.05f)), WSUN) : shadow(add(p, mul(n, ndl > 0 ? 0.03f : -0.08f)), WSUN))) * si * wsh2(p) : 0;
+        float sh = (si > 0.01f && (ndl > 0 || M.sss > 0.5f)) ? ((depth || (WDBG & 2)) ? 1.0f : (((m >= 200 && m < 240) || (m >= 500 && m < 520)) ? (ndl > 0 ? shadow_cz(add(p, mul(n, 0.02f)), WSUN) : shadow_cz_back(p, n)) : shadow(add(p, mul(n, ndl > 0 ? 0.03f : -0.08f)), WSUN))) * si * wsh2(p) : 0;
         if (M.sss > 1.15f && M.sss < 1.25f) sh = mixf(sh, si * wsh2(p), 0.35f);       // (17 nov. 2026) le visage des citoyens : l'ombre du groin et des cheveux n'y fait plus une grosse tache brune
         float dif = fmaxf(ndl, 0); if (M.sss > 0) dif = mixf(dif, fmaxf((ndl + 0.5f) / 1.5f, 0), fminf(M.sss, 1.0f));      // la neige, l'étoffe, la peau : la lumière tourne un peu autour
         v3 L = wlight(p, n, ao, dif * sh);
