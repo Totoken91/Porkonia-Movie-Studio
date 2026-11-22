@@ -1,5 +1,5 @@
 // ============================ LE PORC DE MARCHE : le cochon à quatre pattes de Porkonia ============================
-// Modèle standard n° 2, FIGÉ. C'est le cochon de la Grande Parade du film « 24 heures à Porkonia », recopié tel quel
+// Modèle standard n° 2, FIGÉ (seule retouche : la couronne, redessinée à la demande de Kenny le 22 nov. 2026). C'est le cochon de la Grande Parade du film « 24 heures à Porkonia », recopié tel quel
 // (Kenny, 10 nov. 2026 : « ne les change pas, ils sont très mignons et cool, tout simples à 4 pattes »).
 // Il sert de représentation générale de Porkonia : parades, foules, monuments, emblèmes en volume. Ne retoucher ni sa forme ni ses couleurs ;
 // pour un personnage qui joue, parle ou porte des habits, prendre le citoyen (citizen.h).
@@ -32,14 +32,16 @@ static float p4_sdf(v3 p, float ph, float amp, int skin, int black, int gold, in
     float e = len(sub(p, V(0.2f, 1.22f, 1.34f))) - 0.055f;
     if (e < d) { d = e; *m = black; }
     q = sub(p, V(0, 1.53f, 0.9f));
-    if (len(q) < 0.7f) {    // la couronne
-        float r = len2(q.x, q.z);
-        float cr = box2(fabsf(r - 0.24f) - 0.02f, fabsf(q.y) - 0.07f) - 0.008f;
-        float sec = 6.2831853f / 5, a = atan2f(q.z, q.x) - 1.5707963f;
+    if (len(q) < 0.7f) {    // la couronne (redessinée le 22 nov. 2026, Kenny : « garde-les simples mais moins moches ») :
+        // un bandeau plein et droit, un bourrelet en bas et un en haut, cinq pointes triangulaires pleines, une perle d'or à chaque pointe
+        float r = len2(q.x, q.z), sec = 6.2831853f / 5, a = atan2f(q.z, q.x) - 1.5707963f;
         a -= sec * roundf(a / sec);
-        float lx = r * cosf(a) - 0.24f, lz = r * sinf(a), ly = q.y - 0.07f;
-        float sp = fmaxf(len2(lx, lz) - 0.075f * (1 - ly / 0.2f), fmaxf(-ly, ly - 0.19f)) * 0.8f;
-        cr = fminf(cr, fminf(sp, len(V(lx, ly - 0.2f, lz)) - 0.035f));
+        float s = r * a, lx = r - 0.245f;
+        float cr = box2(fabsf(lx) - 0.022f, fabsf(q.y + 0.005f) - 0.055f) - 0.006f;
+        cr = fminf(cr, fminf(len2(lx, q.y + 0.065f) - 0.022f, len2(lx, q.y - 0.048f) - 0.015f));
+        float y = q.y - 0.05f, w = 0.072f * (1 - y / 0.115f);
+        float tri = fmaxf(fmaxf(fmaxf(fabsf(s) - w, -y), y - 0.115f) * 0.85f, fabsf(lx) - 0.016f) - 0.006f;
+        cr = fminf(cr, fminf(tri, len(V(lx, q.y - 0.185f, s)) - 0.026f));
         if (cr < d) { d = cr; *m = gold; }
     }
     return d;

@@ -27,8 +27,8 @@ static inline float sq(float x) { return x * x; }
 static inline float fract(float x) { return x - floorf(x); }
 static inline float hash2(float x, float y) { return fract(sinf(x * 127.1f + y * 311.7f) * 43758.5453f); }
 
-enum { M_PINK = 1, M_SNOUT, M_GOLD, M_BLACK, M_CHROME, M_RIBBON, M_LETTER, M_USER = 20 };
-typedef struct { V alb, emi; int metal, rtrace, unlit; float f0, shin, rfl; } Mat;
+enum { M_PINK = 1, M_SNOUT, M_GOLD, M_BLACK, M_CHROME, M_RIBBON, M_LETTER, M_CROWN, M_USER = 20 };
+typedef struct { V alb, emi; int metal, rtrace, unlit; float f0, shin, rfl; int skyenv; } Mat;      // skyenv : métal qui ne reflète que le ciel (lisse)
 
 static float T, CUT[16]; static int NCUT;
 static V LDIR, SUNC, AMBU, AMBD, AMBC, RIMC, RIMD, FOGC, LETTER_EMI;
@@ -98,7 +98,7 @@ S float cylY(v3 p, float r, float h) { return box2(len2(p.x, p.z) - r, fabsf(p.y
 S float cylZ(v3 p, float r, float h) { return box2(len2(p.x, p.y) - r, fabsf(p.z) - h); }
 #include "../porc4.h"
 static float pig(V p, float ph, int bm, int *m) {
-    return p4_sdf(p, ph, 1.0f, bm, M_BLACK, M_GOLD, m);
+    return p4_sdf(p, ph, 1.0f, bm, M_BLACK, M_CROWN, m);
 }
 
 
@@ -166,6 +166,7 @@ static int base_material(int m, Mat *o) {
     case M_PINK: o->alb = VV(0.95f, 0.47f, 0.52f); o->f0 = 0.05f; o->shin = 40; o->rfl = 1; return 1;       // matière officielle du cochon standard
     case M_SNOUT: o->alb = VV(0.86f, 0.33f, 0.43f); return 1;
     case M_GOLD: o->alb = VV(1.0f, 0.74f, 0.30f); o->metal = 1; o->shin = 90; return 1;
+    case M_CROWN: o->alb = VV(1.0f, 0.74f, 0.28f); o->metal = 1; o->shin = 70; o->skyenv = 1; return 1;       // l'or des couronnes : il ne reflète que le ciel (sinon le damier du sol y fait des zébrures)
     case M_LETTER: o->alb = VV(1.0f, 0.72f, 0.26f); o->metal = 1; o->shin = 90; o->emi = LETTER_EMI; return 1;
     case M_CHROME: o->alb = VV(0.92f, 0.93f, 0.96f); o->metal = 1; o->shin = 140; return 1;
     case M_BLACK: o->alb = VV(0.02f, 0.02f, 0.02f); o->shin = 120; return 1;
@@ -218,7 +219,7 @@ static V trace(V ro, V rd, int depth) {
     V rr = sub(rd, mul(n, 2 * dot(rd, n)));
     V col;
     if (o.metal) {
-        V env = depth < 1 ? trace(add(p, mul(n, 0.02f)), rr, depth + 1) : sky(rr);
+        V env = (depth < 1 && !o.skyenv) ? trace(add(p, mul(n, 0.02f)), rr, depth + 1) : sky(rr);
         col = add(mulv(o.alb, add(mul(lit, METAL_LIT), mul(env, METAL_ENV))), mul(mulv(o.alb, SUNC), spec * 1.6f));
     } else {
         col = mulv(o.alb, lit);

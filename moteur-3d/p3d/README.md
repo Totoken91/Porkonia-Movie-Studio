@@ -23,6 +23,7 @@ Ce qui rend ce genre d'artefact impossible à laisser passer :
 
 Ajouts au moteur le 22 nov. 2026 :
 - Le cochon couronné de p3d **est** le cochon standard n° 2 (`../porc4.h`), inclus tel quel : groin fondu dans la tête, deux narines rondes toutes simples, couronne d'or à cinq pointes, une seule matière pour tout le corps (un cochon d'or a donc un groin d'or). L'ancien cochon fait main de p3d (groin rose collé, sans narines) est supprimé. p3d.h fournit pour ça les noms du moteur du film (`v3`, `V()`, `sdEll`, `cylZ`...), ce qui permet aussi d'inclure `danseur.h` tel quel.
+- La couronne du cochon standard est redessinée (dans `../porc4.h`, 22 nov. 2026) : bandeau plein et droit, deux bourrelets, cinq pointes triangulaires, une perle d'or à chaque pointe. Son or (`M_CROWN`) ne reflète que le ciel : en miroir parfait, le damier du sol y faisait des zébrures. Les essais « logo Canal Pork » et « minimale » n'ont pas été retenus.
 - `P3D_HITT` : la distance du premier objet touché, pour les effets POSTFX (faisceaux, particules qui passent derrière les objets).
 - `POSTFX` : une scène peut définir `#define POSTFX ma_fonction` avant `#include "p3d.h"` pour ajouter un effet à chaque rayon (le halo doré et les étincelles en étoile des pierres du clip).
 - `PIG_NOSHADOW = 1` : la peau des cochons couronnés ne reçoit plus d'ombre. En gros plan, le groin faisait une tache sombre à bord dur sur le visage (on aurait dit qu'il était gravé). Leurs ombres au sol restent.
